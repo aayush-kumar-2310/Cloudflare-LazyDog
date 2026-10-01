@@ -143,6 +143,10 @@ function ensureObservabilitySubscription() {
  * uses to reach the same conversation.
  */
 export class LazyDog extends Think<Env, LazyDogState> {
+  // The client connects via basePath, so it learns its instance name (the
+  // user's own id) from this handshake rather than from the URL.
+  static options = { sendIdentityOnConnect: true };
+
   initialState: LazyDogState = {
     activity: [],
     reminders: [],

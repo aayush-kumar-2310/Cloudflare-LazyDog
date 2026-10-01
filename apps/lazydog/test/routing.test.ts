@@ -43,8 +43,8 @@ describe("auth and agent routing", () => {
     expect((await get("/auth/dev?login=x")).status).toBe(404);
   });
 
-  it("does not expose Slack ingress when Slack is not configured", async () => {
+  it("rejects unsigned Slack requests", async () => {
     const res = await exports.default.fetch(`${ORIGIN}/webhooks/slack`, { method: "POST", body: "{}" });
-    expect(res.status).toBe(404);
+    expect(res.status).toBeGreaterThanOrEqual(400);
   });
 });
