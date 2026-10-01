@@ -22,18 +22,14 @@ npm run deploy                                # applies D1 migrations, then depl
 
 Note the URL it prints, e.g. `https://lazydog-notes-mcp.<subdomain>.workers.dev`.
 
-## 2. AI Search instance
+## 2. AI Search
 
-AI Search crawls only websites you own, so LazyDog indexes uploaded copies of
-the Cloudflare Agents docs instead. Create an upload-based instance with the
-two metadata fields LazyDog uses for citations:
-
-```bash
-npx wrangler ai-search create lazydog-docs --type builtin \
-  --custom-metadata title:text --custom-metadata url:text
-```
-
-You seed it from the app after deploying (step 5).
+Nothing to do now. AI Search crawls only websites you own, so LazyDog indexes
+uploaded copies of the Cloudflare Agents docs instead: the admin **Seed AI
+Search** action (step 5) creates the `lazydog-docs` instance through the
+Worker's binding if it doesn't exist, with the `title` and `url` metadata
+fields used for citations, then uploads the pages. (Creating it with
+`wrangler ai-search create` instead requires an AI Search service token.)
 
 ## 3. GitHub OAuth app
 
@@ -73,7 +69,7 @@ npm run deploy                                  # vite build && wrangler deploy
 1. Open the app and sign in with GitHub.
 2. In **Identity & channels**, click **Seed AI Search with the Cloudflare
    Agents docs** (admins only). It uploads ~110 pages in batches of 20.
-   Indexing continues in the background: `npx wrangler ai-search stats lazydog-docs`.
+   Indexing continues in the background; search returns results while it runs.
 3. Try: *"Explain Cloudflare durable execution."* — it should call
    `ai_search`, then answer with source links.
 

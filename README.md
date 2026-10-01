@@ -15,7 +15,7 @@ the same conversation, memory, notes, reminders and activity log.
 | Durable agent, state, history | `Think` + Session in DO SQLite, synced state via `useAgent` | ✅ tested |
 | Streaming web chat | `useAgentChat` over the agent WebSocket | ✅ tested in browser |
 | Configurable model | Workers AI Qwen 3.8 27B (default, benchmarked), Anthropic or OpenAI via `MODEL_PROVIDER` | ✅ tested on real Workers AI |
-| AI Search research with sources | `ai_search` tool on an `ai_search_namespaces` binding; docs seeding | ✅ wired · needs account |
+| AI Search research with sources | `ai_search` tool on an `ai_search_namespaces` binding; admin seeding creates + fills the instance | ✅ instance created and searched on real AI Search |
 | Browser | `browser_open` / `browser_links` (Browser Run Quick Actions, paced, fetch fallback) | ✅ tested on real Browser Run |
 | Code execution | `run_python` in Cloudflare Sandbox *(paid)*; workspace `bash` on free | ✅ wired |
 | MCP | separate Notes MCP Worker (`createMcpHandler`, D1); agent is an MCP client | ✅ tested end to end |
@@ -75,7 +75,7 @@ npm test          # both Workers, in the Workers runtime (vitest-pool-workers)
 npm run typecheck
 ```
 
-58 tests: the agent loop with a scripted model through the real Think runtime,
+60 tests: the agent loop with a scripted model through the real Think runtime,
 durable submissions and dedupe, reminders firing from a real alarm, the
 crash-and-resume job, webhook signing/replay/size rules, identity linking and
 its abuse guards, Slack and email routing, auth and routing, and the notes MCP

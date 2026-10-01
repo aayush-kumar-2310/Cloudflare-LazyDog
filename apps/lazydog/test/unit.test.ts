@@ -241,3 +241,44 @@ describe("model error messages", () => {
     expect(friendlyModelError(new Error("socket hang up"))).toBeNull();
   });
 });
+
+import { ensureInstance } from "../src/server/http/seed-search";
+
+describe("AI Search instance bootstrap", () => {
+  const namespace = (exists: boolean) => {
+    const created: unknown[] = [];
+    const ns = {
+      get: () => ({
+        info: async () => {
+          if (!exists) throw new Error("AiSearchNotFoundError: ai_search_not_found");
+          return {};
+        }
+      }),
+      create: async (config: unknown) => {
+        created.push(config);
+        return {};
+      }
+    };
+    return { ns: ns as unknown as AiSearchNamespace, created };
+  };
+
+  it("creates a missing instance with citation metadata", async () => {
+    const { ns, created } = namespace(false);
+    expect(await ensureInstance(ns, "lazydog-docs")).toBe("created");
+    expect(created).toEqual([
+      {
+        id: "lazydog-docs",
+        custom_metadata: [
+          { field_name: "title", data_type: "text" },
+          { field_name: "url", data_type: "text" }
+        ]
+      }
+    ]);
+  });
+
+  it("leaves an existing instance alone", async () => {
+    const { ns, created } = namespace(true);
+    expect(await ensureInstance(ns, "lazydog-docs")).toBe("exists");
+    expect(created).toEqual([]);
+  });
+});
