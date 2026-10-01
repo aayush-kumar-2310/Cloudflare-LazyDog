@@ -121,3 +121,96 @@ describe("AI Search docs seeding", () => {
     expect(pageUrl(url)).toBe("https://developers.cloudflare.com/agents/harnesses/think/");
   });
 });
+
+import { htmlToText, linksFromHtml, RateGate, withBrowserFallback } from "../src/server/agent/tools/research";
+
+describe("Browser Run pacing and fallback", () => {
+  it("spaces reservations by the interval, including concurrent callers", () => {
+    let now = 1_000;
+    const gate = new RateGate(10_000, () => now);
+    expect(gate.reserve()).toBe(0);
+    expect(gate.reserve()).toBe(10_000);
+    expect(gate.reserve()).toBe(20_000);
+    now += 35_000;
+    expect(gate.reserve()).toBe(0);
+  });
+
+  it("falls back to a direct fetch on 429 and says so", async () => {
+    const gate = new RateGate(0);
+    const limited = Object.assign(new Error("Browser Run markdown failed (429)"), { status: 429 });
+    const result = await withBrowserFallback(gate, async () => { throw limited; }, async () => "plain text");
+    expect(result).toMatchObject({ value: "plain text", via: "direct-fetch" });
+    expect(result.note).toMatch(/429/);
+  });
+
+  it("does not hide other browser errors", async () => {
+    const gate = new RateGate(0);
+    const broken = Object.assign(new Error("boom"), { status: 500 });
+    await expect(withBrowserFallback(gate, async () => { throw broken; }, async () => "x")).rejects.toThrow("boom");
+  });
+
+  it("skips the wait entirely when the queue is too long", async () => {
+    let now = 0;
+    const gate = new RateGate(15_000, () => now);
+    gate.reserve();
+    gate.reserve(); // next slot is 30s away
+    const result = await withBrowserFallback(gate, async () => "browser", async () => "fetched");
+    expect(result).toMatchObject({ value: "fetched", via: "direct-fetch" });
+  });
+
+  it("extracts readable text and absolute links from HTML", () => {
+    const html = `<html><head><style>x{}</style><script>evil()</script></head><body><nav>menu</nav>
+      <h1>Agents</h1><p>Build &amp; deploy.</p><ul><li>One</li></ul><a href="/agents/tools/">Tools</a><a href="#top">top</a></body></html>`;
+    expect(htmlToText(html)).toBe("# Agents\nBuild & deploy.\n\n- One\nTools top");
+    expect(linksFromHtml(html, new URL("https://developers.cloudflare.com/agents/"))).toEqual([
+      "https://developers.cloudflare.com/agents/tools/"
+    ]);
+  });
+});
+
+import { toSpeech } from "../src/server/voice/speech";
+
+describe("voice output", () => {
+  it("strips markdown the TTS would read aloud", () => {
+    expect(
+      toSpeech("You have one pending reminder:\n\n- **Review the note “Tools.”** Scheduled for 2026‑10‑02 10:00 AM UTC.")
+    ).toBe("You have one pending reminder: Review the note “Tools.” Scheduled for 2026-10-02 10:00 AM UTC.");
+    expect(toSpeech("See [the docs](https://example.com) or `npm test`.\n```js\nx()\n```")).toBe(
+      "See the docs or npm test. (code omitted)"
+    );
+  });
+});
+
+import { repetitionGuard, STOPPED_NOTE } from "../src/server/agent/repetition-guard";
+
+describe("repetition guard", () => {
+  const run = async (deltas: string[]) => {
+    let stopped = false;
+    const stream = new ReadableStream({
+      start(c) {
+        for (const text of deltas) c.enqueue({ type: "text-delta", id: "t", text });
+        c.enqueue({ type: "finish" });
+        c.close();
+      }
+    }).pipeThrough(repetitionGuard(10)({ tools: {}, stopStream: () => { stopped = true; } }) as never);
+    const parts: Array<{ type: string; text?: string }> = [];
+    for await (const p of stream as AsyncIterable<{ type: string; text?: string }>) parts.push(p);
+    return { stopped, text: parts.map((p) => p.text ?? "").join(""), types: parts.map((p) => p.type) };
+  };
+
+  it("passes normal text through", async () => {
+    const r = await run(["Hello ", "world!! ", "Fine...."]);
+    expect(r).toMatchObject({ stopped: false, text: "Hello world!! Fine...." });
+  });
+
+  it("stops a run of one repeated character across chunks", async () => {
+    const r = await run(["Sure", "!!!!!!", "!!!!!!", "!!!!!!!!", "more"]);
+    expect(r.stopped).toBe(true);
+    expect(r.text).toBe(`Sure!!!!!!${STOPPED_NOTE}`); // the chunk that crosses the limit is dropped
+    expect(r.types).not.toContain("finish");
+  });
+
+  it("ignores long whitespace runs", async () => {
+    expect((await run([" ".repeat(50), "ok"])).stopped).toBe(false);
+  });
+});

@@ -32,6 +32,7 @@ import {
   type ActivityPatch
 } from "./activity";
 import { createModel } from "./model";
+import { repetitionGuard } from "./repetition-guard";
 import { CHANNEL_INSTRUCTIONS, SOUL } from "./prompts";
 import { createMcpServerTools, NOTES_TOOL_PREFIX } from "./tools/notes-mcp";
 import {
@@ -39,7 +40,14 @@ import {
   type ReminderPayload,
   type ReminderWhen
 } from "./tools/reminders";
-import { aiSearch, createResearchTools } from "./tools/research";
+import {
+  aiSearch,
+  BROWSER_INTERVAL_MS,
+  createResearchTools,
+  htmlToText,
+  RateGate,
+  withBrowserFallback
+} from "./tools/research";
 import {
   jobSummary,
   runResearchSteps,
@@ -160,6 +168,12 @@ export class LazyDog extends Think<Env, LazyDogState> {
   includeMcpTools = false;
   waitForMcpConnections = { timeout: 5_000 };
   maxSteps = 12;
+  /** Shared by all browser tool calls on this agent (Workers Free: 1 Quick Action / 10s). */
+  #browserGate = new RateGate(BROWSER_INTERVAL_MS);
+  // Think disables its stream-stall watchdog by default; a hung model stream
+  // (seen intermittently from Workers AI) would then block this user's turn
+  // queue on every channel. 60s is above the slowest tool (paced browser call).
+  chatStreamStallTimeoutMs = 60_000;
   chatRecovery = {
     maxAttempts: 6,
     terminalMessage: "LazyDog was interrupted and could not finish this reply. Please ask again."
@@ -213,7 +227,7 @@ export class LazyDog extends Think<Env, LazyDogState> {
   getTools(): ToolSet {
     const c = config(this.env);
     return {
-      ...createResearchTools(this.env, c.aiSearchInstance),
+      ...createResearchTools(this.env, c.aiSearchInstance, this.#browserGate),
       ...createSandboxTools(
         this.env.Sandbox as DurableObjectNamespace<Sandbox> | undefined,
         `py-${this.name}`.toLowerCase()
@@ -328,6 +342,10 @@ export class LazyDog extends Think<Env, LazyDogState> {
       timeStyle: "long"
     }).format(now);
     return {
+      // Workers AI applies a small default output cap when none is sent, which
+      // cut answers off mid-sentence.
+      maxOutputTokens: 4_096,
+      experimental_transform: repetitionGuard(),
       system:
         `${ctx.system}\n\n## Now\nCurrent time: ${local} (${tz}); UTC ${now.toISOString()}.` +
         `\nActive channel: ${channel}.` +
@@ -653,7 +671,12 @@ export class LazyDog extends Think<Env, LazyDogState> {
         const sources = Array.isArray(s.results.search) ? (s.results.search as { url: string }[]) : [];
         const url = sources.find((x) => /^https?:/.test(x.url))?.url;
         if (!url) throw new Error("no source URL to read");
-        return { url, markdown: (await browserMarkdown(this.env.BROWSER, { url })).slice(0, 6_000) };
+        const { value, via } = await withBrowserFallback(
+          this.#browserGate,
+          () => browserMarkdown(this.env.BROWSER, { url }),
+          async () => htmlToText(await (await fetch(url)).text())
+        );
+        return { url, via, markdown: value.slice(0, 6_000) };
       }
       case "summarize": {
         const { text } = await generateText({

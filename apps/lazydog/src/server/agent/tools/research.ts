@@ -69,7 +69,106 @@ export function assertBrowsableUrl(raw: string): URL {
   return url;
 }
 
-export function createResearchTools(env: Env, aiSearchInstance: string) {
+/**
+ * Paces Browser Run calls. Workers Free allows one Quick Action request every
+ * 10 seconds per account; calls reserve consecutive slots, so concurrent tool
+ * calls queue instead of colliding.
+ */
+export class RateGate {
+  #next = 0;
+  constructor(
+    private readonly intervalMs: number,
+    private readonly now: () => number = Date.now
+  ) {}
+
+  /** Reserve the next slot; returns how long the caller must wait for it. */
+  reserve(): number {
+    const now = this.now();
+    const at = Math.max(now, this.#next);
+    this.#next = at + this.intervalMs;
+    return at - now;
+  }
+
+  /** Push the next slot out, e.g. after a 429 with Retry-After. */
+  backoff(ms: number) {
+    this.#next = Math.max(this.#next, this.now() + ms);
+  }
+}
+
+export const BROWSER_INTERVAL_MS = 10_000;
+/** Longer than this and we fetch directly instead of waiting for Browser Run. */
+export const MAX_BROWSER_WAIT_MS = 20_000;
+
+const isRateLimited = (error: unknown) => (error as { status?: number }).status === 429;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Crude but dependency-free HTML → readable text for the direct-fetch fallback. */
+export function htmlToText(html: string): string {
+  return html
+    .replace(/<(script|style|noscript|svg|nav|footer|header)[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<\/(p|div|section|article|li|tr|h[1-6]|pre|br)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<h([1-6])[^>]*>/gi, (_m, level) => `\n${"#".repeat(Number(level))} `)
+    .replace(/<li[^>]*>/gi, "\n- ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export function linksFromHtml(html: string, base: URL): string[] {
+  const out = new Set<string>();
+  for (const m of html.matchAll(/<a\s[^>]*href="([^"#]+)"/gi)) {
+    try {
+      const url = new URL(m[1], base);
+      if (url.protocol === "http:" || url.protocol === "https:") out.add(url.toString());
+    } catch {
+      // ignore malformed hrefs
+    }
+  }
+  return [...out];
+}
+
+async function directFetch(url: URL): Promise<string> {
+  const res = await fetch(url, {
+    headers: { Accept: "text/html,text/markdown;q=0.9,*/*;q=0.5", "User-Agent": "LazyDog/1.0 (+Cloudflare Agents)" },
+    redirect: "follow"
+  });
+  if (!res.ok) throw new Error(`direct fetch failed (${res.status})`);
+  return res.text();
+}
+
+/**
+ * Run a Browser Run Quick Action with pacing; on rate limiting (or if the
+ * wait would be too long) fall back to a plain HTTP fetch, and say so.
+ */
+export async function withBrowserFallback<T>(
+  gate: RateGate,
+  run: () => Promise<T>,
+  fallback: () => Promise<T>
+): Promise<{ value: T; via: "browser-run" | "direct-fetch"; note?: string }> {
+  const wait = gate.reserve();
+  if (wait > MAX_BROWSER_WAIT_MS) {
+    return { value: await fallback(), via: "direct-fetch", note: "Browser Run is busy (free-plan rate limit); fetched without JavaScript rendering." };
+  }
+  if (wait > 0) await sleep(wait);
+  try {
+    return { value: await run(), via: "browser-run" };
+  } catch (error) {
+    if (!isRateLimited(error)) throw error;
+    gate.backoff(BROWSER_INTERVAL_MS);
+    return { value: await fallback(), via: "direct-fetch", note: "Browser Run rate-limited (429); fetched without JavaScript rendering." };
+  }
+}
+
+export function createResearchTools(env: Env, aiSearchInstance: string, browserGate: RateGate) {
   return {
     ai_search: tool({
       description:
@@ -85,16 +184,23 @@ export function createResearchTools(env: Env, aiSearchInstance: string) {
 
     browser_open: tool({
       description:
-        "Open a public web page in a real headless browser (Cloudflare Browser Run) and return its content as Markdown.",
+        "Open a public web page in a real headless browser (Cloudflare Browser Run) and return its content as Markdown. " +
+        "Calls are paced; open only the pages you need.",
       inputSchema: z.object({
         url: z.string().url(),
         maxChars: z.number().int().min(500).max(40_000).default(12_000)
       }),
       execute: async ({ url, maxChars }) => {
         const target = assertBrowsableUrl(url);
-        const markdown = await browserMarkdown(env.BROWSER, { url: target.toString() });
+        const { value: markdown, via, note } = await withBrowserFallback(
+          browserGate,
+          () => browserMarkdown(env.BROWSER, { url: target.toString() }),
+          async () => htmlToText(await directFetch(target))
+        );
         return {
           url: target.toString(),
+          via,
+          ...(note ? { note } : {}),
           truncated: markdown.length > maxChars,
           markdown: markdown.slice(0, maxChars)
         };
@@ -106,8 +212,12 @@ export function createResearchTools(env: Env, aiSearchInstance: string) {
       inputSchema: z.object({ url: z.string().url() }),
       execute: async ({ url }) => {
         const target = assertBrowsableUrl(url);
-        const links = await browserLinks(env.BROWSER, { url: target.toString() });
-        return { url: target.toString(), links: links.slice(0, 150) };
+        const { value: links, via, note } = await withBrowserFallback(
+          browserGate,
+          () => browserLinks(env.BROWSER, { url: target.toString() }),
+          async () => linksFromHtml(await directFetch(target), target)
+        );
+        return { url: target.toString(), via, ...(note ? { note } : {}), links: links.slice(0, 150) };
       }
     })
   };

@@ -39,8 +39,10 @@
 
   "vars": {
     // workers-ai | anthropic | openai
+    // Workers Free cannot run Kimi K2.6 / GLM-5.3 (error 5035); gpt-oss-120b is the
+    // strongest free-plan tool-calling model. On Workers Paid, try @cf/moonshotai/kimi-k2.6.
     "MODEL_PROVIDER": "workers-ai",
-    "MODEL_ID": "@cf/moonshotai/kimi-k2.6",
+    "MODEL_ID": "@cf/openai/gpt-oss-120b",
     "AI_SEARCH_INSTANCE": "lazydog-docs",
     "NOTES_MCP_URL": "https://lazydog-notes-mcp.<your-subdomain>.workers.dev/mcp",
     "EMAIL_FROM": "lazydog@example.com",
@@ -83,7 +85,7 @@
       ],
       "vars": {
         "MODEL_PROVIDER": "workers-ai",
-        "MODEL_ID": "@cf/moonshotai/kimi-k2.6",
+        "MODEL_ID": "@cf/openai/gpt-oss-120b",
         "AI_SEARCH_INSTANCE": "lazydog-docs",
         "NOTES_MCP_URL": "https://lazydog-notes-mcp.<your-subdomain>.workers.dev/mcp",
         "EMAIL_FROM": "lazydog@example.com",

@@ -1,45 +1,58 @@
 import { useVoiceAgent } from "@cloudflare/voice/react";
-import { useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { GatedMicInput } from "../voice/gated-mic";
 
-// Keep streaming a little silence after release so the STT model sees the end of the turn.
-const RELEASE_TAIL_MS = 700;
+// A short tail after release so the end of the last word isn't clipped.
+const RELEASE_TAIL_MS = 250;
+// Hang up after this long without a press, once nothing is being said.
+const IDLE_HANGUP_MS = 60_000;
 
 /**
- * Push-to-talk. The call (WebSocket + mic) opens on first press and stays
- * open muted; holding the button unmutes. The reply is spoken back and also
- * lands in the chat transcript, because the turn runs on the same LazyDog.
+ * Push-to-talk. The first press starts a call; holding opens the mic gate,
+ * releasing closes it (silence keeps the STT session alive, so replies are
+ * never cut off). Each utterance becomes a turn on the user's LazyDog, so it
+ * also lands in the chat transcript.
  */
 export function VoiceButton({ userId }: { userId: string }) {
-  const voice = useVoiceAgent({ agent: "VoiceBridge", name: userId });
-  const release = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const holding = useRef(false);
+  const mic = useMemo(() => new GatedMicInput(), []);
+  const voice = useVoiceAgent({ agent: "VoiceBridge", name: userId, audioInput: mic });
+  const [holding, setHolding] = useState(false);
+  const tail = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastUse = useRef(Date.now());
+
+  useEffect(() => {
+    if (voice.status === "idle") return;
+    const timer = setInterval(() => {
+      if (!mic.open && voice.status === "listening" && Date.now() - lastUse.current > IDLE_HANGUP_MS) {
+        voice.endCall();
+      }
+    }, 5_000);
+    return () => clearInterval(timer);
+  }, [voice.status]);
 
   const press = async () => {
-    holding.current = true;
-    if (release.current) clearTimeout(release.current);
+    if (tail.current) clearTimeout(tail.current);
+    lastUse.current = Date.now();
+    setHolding(true);
+    mic.open = true;
     if (voice.status === "idle") await voice.startCall();
-    else if (voice.isMuted) voice.toggleMute();
   };
 
   const letGo = () => {
-    if (!holding.current) return;
-    holding.current = false;
-    release.current = setTimeout(() => {
-      if (!voice.isMuted) voice.toggleMute();
+    setHolding(false);
+    lastUse.current = Date.now();
+    tail.current = setTimeout(() => {
+      mic.open = false;
     }, RELEASE_TAIL_MS);
   };
 
-  const talking = voice.status !== "idle" && !voice.isMuted;
-  const label =
-    voice.status === "idle"
-      ? "Hold to talk"
-      : talking
-        ? "Listening…"
-        : voice.status === "thinking"
-          ? "Thinking…"
-          : voice.status === "speaking"
-            ? "Speaking…"
-            : "Hold to talk";
+  const label = holding
+    ? "Listening…"
+    : voice.status === "thinking"
+      ? "Thinking…"
+      : voice.status === "speaking"
+        ? "Speaking…"
+        : "Hold to talk";
 
   return (
     <div className="flex flex-col items-center">
@@ -53,13 +66,13 @@ export function VoiceButton({ userId }: { userId: string }) {
         onPointerCancel={letGo}
         title={voice.error ?? "Push to talk"}
         className={`h-10 select-none rounded-lg px-3 text-sm ${
-          talking ? "bg-red-600 text-white" : "border border-zinc-300 dark:border-zinc-700"
+          holding ? "bg-red-600 text-white" : "border border-zinc-300 dark:border-zinc-700"
         }`}
-        style={talking ? { boxShadow: `0 0 0 ${2 + voice.audioLevel * 12}px rgb(220 38 38 / 0.35)` } : undefined}
+        style={holding ? { boxShadow: `0 0 0 ${2 + voice.audioLevel * 12}px rgb(220 38 38 / 0.35)` } : undefined}
       >
         🎙 {label}
       </button>
-      {voice.status !== "idle" && (
+      {voice.status !== "idle" && !holding && (
         <button type="button" onClick={voice.endCall} className="mt-0.5 text-[10px] text-zinc-500 underline">
           end voice
         </button>

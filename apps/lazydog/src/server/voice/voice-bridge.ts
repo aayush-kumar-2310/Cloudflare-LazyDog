@@ -6,6 +6,9 @@ import {
   type VoiceTurnContext
 } from "@cloudflare/voice";
 import { lazyDog } from "../agent/client";
+import { toSpeech } from "./speech";
+
+const VOICE_TURN_TIMEOUT_MS = 45_000;
 
 const VoiceAgent = withVoice(Agent, { historyLimit: 0, maxMessageCount: 200 });
 
@@ -41,8 +44,20 @@ export class VoiceBridge extends VoiceAgent<Env> {
     return transcript.trim().length < 3 ? null : transcript;
   }
 
+  beforeSynthesize(text: string) {
+    const speech = toSpeech(text);
+    return speech.length ? speech : null;
+  }
+
   async onTurn(transcript: string, _context: VoiceTurnContext) {
     const agent = await lazyDog(this.env, this.name);
-    return agent.voiceTurn(transcript);
+    // The turn keeps running on LazyDog either way; the caller isn't left in silence.
+    const slow = new Promise<string>((resolve) =>
+      setTimeout(
+        () => resolve("That's taking longer than usual. I'll keep working on it, and the answer will appear in your chat."),
+        VOICE_TURN_TIMEOUT_MS
+      )
+    );
+    return Promise.race([agent.voiceTurn(transcript), slow]);
   }
 }
