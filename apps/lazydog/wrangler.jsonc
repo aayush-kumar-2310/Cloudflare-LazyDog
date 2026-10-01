@@ -5,6 +5,9 @@
   // Newest date supported by the pinned workerd used in local dev and tests.
   "compatibility_date": "2026-08-22",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  // No per-version public preview URLs.
+  "preview_urls": false,
 
   "assets": {
     "not_found_handling": "single-page-application",
@@ -44,9 +47,10 @@
     "MODEL_PROVIDER": "workers-ai",
     "MODEL_ID": "@cf/qwen/qwen3.8-27b",
     "AI_SEARCH_INSTANCE": "lazydog-docs",
-    "NOTES_MCP_URL": "https://lazydog-notes-mcp.<your-subdomain>.workers.dev/mcp",
-    "EMAIL_FROM": "lazydog@example.com",
-    "PUBLIC_URL": "",
+    "NOTES_MCP_URL": "https://lazydog-notes-mcp.kumar-aayush2310.workers.dev/mcp",
+    // Needs a domain on Cloudflare with Email Routing (docs/DEPLOY.md); empty disables email.
+    "EMAIL_FROM": "",
+    "PUBLIC_URL": "https://lazydog.kumar-aayush2310.workers.dev",
     // Comma-separated GitHub logins allowed to sign in (they are also admins).
     // Empty = nobody, unless OPEN_SIGNUP is "true". Every turn spends the account's AI budget.
     "ALLOWED_GITHUB_LOGINS": "aayush-kumar-2310",
@@ -89,9 +93,10 @@
         "MODEL_PROVIDER": "workers-ai",
         "MODEL_ID": "@cf/qwen/qwen3.8-27b",
         "AI_SEARCH_INSTANCE": "lazydog-docs",
-        "NOTES_MCP_URL": "https://lazydog-notes-mcp.<your-subdomain>.workers.dev/mcp",
-        "EMAIL_FROM": "lazydog@example.com",
-    "PUBLIC_URL": "",
+        "NOTES_MCP_URL": "https://lazydog-notes-mcp.kumar-aayush2310.workers.dev/mcp",
+        // Needs a domain on Cloudflare with Email Routing (docs/DEPLOY.md); empty disables email.
+    "EMAIL_FROM": "",
+    "PUBLIC_URL": "https://lazydog-paid.kumar-aayush2310.workers.dev",
         "ALLOWED_GITHUB_LOGINS": "aayush-kumar-2310",
         "OPEN_SIGNUP": "false",
         "DEFAULT_TIMEZONE": "UTC"

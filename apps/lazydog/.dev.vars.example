@@ -17,3 +17,6 @@ OPENAI_API_KEY=
 
 # Local notes-mcp dev server (`npm run dev:notes`)
 NOTES_MCP_URL=http://localhost:8788/mcp
+
+# Local email simulation (/cdn-cgi/handler/email); production needs a real domain.
+EMAIL_FROM=lazydog@example.com

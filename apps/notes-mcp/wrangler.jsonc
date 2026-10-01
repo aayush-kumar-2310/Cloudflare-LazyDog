@@ -4,13 +4,15 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-22",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  // No per-version public preview URLs.
+  "preview_urls": false,
   "observability": { "enabled": true },
   "d1_databases": [
     {
       "binding": "NOTES_DB",
       "database_name": "lazydog-notes",
-      // Replace with the id printed by `wrangler d1 create lazydog-notes` before deploying.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "56cd93e7-9a5e-43c5-88dd-79f0b1b24fdb",
       "migrations_dir": "migrations"
     }
   ]
