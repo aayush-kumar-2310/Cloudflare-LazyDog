@@ -18,6 +18,25 @@ export function ChannelsPanel({
   onReconnectNotes: () => void;
 }) {
   const [code, setCode] = useState<{ code: string; expiresAt: number } | null>(null);
+  const [seed, setSeed] = useState<string | null>(null);
+
+  const seedSearch = async () => {
+    let offset: number | null = 0;
+    let uploaded = 0;
+    let failed = 0;
+    try {
+      while (offset !== null) {
+        setSeed(`indexing docs… ${uploaded} uploaded`);
+        const r = await api.seedSearch(offset);
+        uploaded += r.uploaded.length;
+        failed += r.failed.length;
+        offset = r.nextOffset;
+      }
+      setSeed(`${uploaded} docs uploaded${failed ? `, ${failed} failed` : ""}; AI Search indexes them in the background.`);
+    } catch (error) {
+      setSeed((error as Error).message);
+    }
+  };
   const caps = state?.capabilities;
 
   return (
@@ -49,6 +68,15 @@ export function ChannelsPanel({
           {state?.mcp.error && <span className="block truncate" title={state.mcp.error}>{state.mcp.error}</span>}
         </span>
       </div>
+
+      {me.isAdmin && (
+        <div className="mt-2 text-[11px]">
+          <button onClick={seedSearch} className="underline">
+            Seed AI Search with the Cloudflare Agents docs
+          </button>
+          {seed && <span className="block text-zinc-500">{seed}</span>}
+        </div>
+      )}
 
       <div className="mt-3 space-y-1 text-xs">
         <button

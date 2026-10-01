@@ -10,11 +10,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body;
 }
 
-export type Me = { profile: Profile; channels: { slack: boolean; email: string | null } };
+export type Me = { profile: Profile; isAdmin: boolean; channels: { slack: boolean; email: string | null } };
 
 export const api = {
   session: () => request<{ signedIn: boolean; login: string | null }>("/api/session"),
   me: () => request<Me>("/api/me"),
+  seedSearch: (offset: number) =>
+    request<{ uploaded: string[]; failed: string[]; total: number; nextOffset: number | null }>(
+      `/api/admin/seed-search?offset=${offset}`,
+      { method: "POST" }
+    ),
   linkCode: () => request<{ code: string; expiresAt: number }>("/api/link-code", { method: "POST" }),
   webhookSources: () => request<{ sources: WebhookSourceSummary[] }>("/api/webhook-sources"),
   createWebhookSource: (name: string) =>

@@ -4,6 +4,7 @@ import { isSameOrigin } from "../auth/session";
 import { handleWebhook, signWebhook, WEBHOOK_HEADERS } from "../channels/webhook";
 import { config, slackConfigured } from "../config";
 import { registry } from "../identity/client";
+import { seedSearchBatch } from "./seed-search";
 
 const createSourceSchema = z.object({ name: z.string().trim().min(1).max(80) });
 
@@ -22,6 +23,18 @@ const SAMPLE_EVENT = (sourceName: string) => ({
   }
 });
 
+/**
+ * Admins may run account-level maintenance (seeding AI Search). Production:
+ * logins listed in ALLOWED_GITHUB_LOGINS. Local dev: the dev login on a
+ * loopback host.
+ */
+export function isAdmin(request: Request, env: Env, session: Session): boolean {
+  const c = config(env);
+  if (c.allowedGithubLogins.includes(session.login.toLowerCase())) return true;
+  const host = new URL(request.url).hostname;
+  return c.devLogin && ["localhost", "127.0.0.1"].includes(host) && session.login.startsWith("dev-");
+}
+
 /** Authenticated JSON API used by the web app. */
 export async function handleApi(request: Request, env: Env, session: Session): Promise<Response> {
   const url = new URL(request.url);
@@ -37,11 +50,24 @@ export async function handleApi(request: Request, env: Env, session: Session): P
     const profile = await reg.getProfile(session.uid);
     return Response.json({
       profile,
+      isAdmin: isAdmin(request, env, session),
       channels: {
         slack: slackConfigured(c),
         email: c.emailFrom || null
       }
     });
+  }
+
+  if (path === "/admin/seed-search" && method === "POST") {
+    if (!isAdmin(request, env, session)) return Response.json({ error: "forbidden" }, { status: 403 });
+    const instance = config(env).aiSearchInstance;
+    if (!instance) return Response.json({ error: "AI_SEARCH_INSTANCE is not configured" }, { status: 400 });
+    const offset = Math.max(0, Number(url.searchParams.get("offset") ?? 0) || 0);
+    try {
+      return Response.json(await seedSearchBatch(env.AI_SEARCH, instance, offset));
+    } catch (error) {
+      return Response.json({ error: (error as Error).message }, { status: 502 });
+    }
   }
 
   if (path === "/link-code" && method === "POST") {

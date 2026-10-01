@@ -1,5 +1,5 @@
 import { StrictMode, useEffect, useState } from "react";
-import { createRoot } from "react-dom/client";
+import { createRoot, type Root as ReactRoot } from "react-dom/client";
 import { api, type Me } from "./api";
 import { App } from "./App";
 import "./styles.css";
@@ -43,7 +43,10 @@ function Root() {
   return <App me={me} onProfileChange={setMe} />;
 }
 
-createRoot(document.getElementById("root")!).render(
+// Reuse the root across Vite hot reloads of this entry module.
+const root: ReactRoot = import.meta.hot?.data.root ?? createRoot(document.getElementById("root")!);
+if (import.meta.hot) import.meta.hot.data.root = root;
+root.render(
   <StrictMode>
     <Root />
   </StrictMode>

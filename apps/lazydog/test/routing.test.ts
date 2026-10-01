@@ -43,6 +43,16 @@ describe("auth and agent routing", () => {
     expect((await get("/auth/dev?login=x")).status).toBe(404);
   });
 
+  it("restricts AI Search seeding to admins", async () => {
+    const user = await signedInUser();
+    const res = await exports.default.fetch(`${ORIGIN}/api/admin/seed-search`, {
+      method: "POST",
+      headers: { Cookie: user.cookie, Origin: ORIGIN }
+    });
+    expect(res.status).toBe(403);
+    expect(await (await get("/api/me", { Cookie: user.cookie })).json()).toMatchObject({ isAdmin: false });
+  });
+
   it("rejects unsigned Slack requests", async () => {
     const res = await exports.default.fetch(`${ORIGIN}/webhooks/slack`, { method: "POST", body: "{}" });
     expect(res.status).toBeGreaterThanOrEqual(400);

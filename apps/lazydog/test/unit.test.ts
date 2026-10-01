@@ -95,3 +95,29 @@ describe("channel guards", () => {
     }
   });
 });
+
+import { cleanDocMarkdown, docUrlsFromIndex, itemKey, pageUrl } from "../src/server/http/seed-search";
+
+describe("AI Search docs seeding", () => {
+  it("extracts unique agents doc URLs from llms.txt", () => {
+    const index = `- [Think](https://developers.cloudflare.com/agents/harnesses/think/index.md)
+- https://developers.cloudflare.com/agents/index.md
+- https://developers.cloudflare.com/agents/index.md
+- https://developers.cloudflare.com/workers/index.md`;
+    expect(docUrlsFromIndex(index)).toEqual([
+      "https://developers.cloudflare.com/agents/harnesses/think/index.md",
+      "https://developers.cloudflare.com/agents/index.md"
+    ]);
+  });
+
+  it("keeps the article and drops chrome", () => {
+    const raw = `---\ntitle: Think\ndescription: x\n---\n\n[Skip to content](#main-content)\n\n> Documentation Index\n\n# Think\n\nBody text.\n\nWas this helpful?\n\nYesNo\n\n## On this page\n{"@context":"x"}`;
+    expect(cleanDocMarkdown(raw)).toEqual({ title: "Think", body: "# Think\n\nBody text." });
+  });
+
+  it("names items after the doc path", () => {
+    const url = "https://developers.cloudflare.com/agents/harnesses/think/index.md";
+    expect(itemKey(url)).toBe("agents/harnesses/think.md");
+    expect(pageUrl(url)).toBe("https://developers.cloudflare.com/agents/harnesses/think/");
+  });
+});

@@ -35,7 +35,12 @@ export async function aiSearch(
         const meta = chunk.item.metadata ?? {};
         return {
           title: typeof meta.title === "string" ? meta.title : chunk.item.key,
-          url: typeof meta.url === "string" ? meta.url : chunk.item.key,
+          url:
+            typeof meta.url === "string"
+              ? meta.url
+              : /^agents\/.*\.md$/.test(chunk.item.key) // seeded docs item without metadata
+                ? `https://developers.cloudflare.com/${chunk.item.key.replace(/\.md$/, "")}/`
+                : chunk.item.key,
           score: Math.round(chunk.score * 1000) / 1000,
           snippet: chunk.text.slice(0, MAX_SNIPPET_CHARS)
         };
