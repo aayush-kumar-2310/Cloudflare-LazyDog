@@ -1,0 +1,96 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "lazydog",
+  "main": "src/server/index.ts",
+  // Newest date supported by the pinned workerd used in local dev and tests.
+  "compatibility_date": "2026-08-22",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "not_found_handling": "single-page-application",
+    // The Worker owns auth, agent, webhook, Slack and API routes; everything else is the SPA.
+    "run_worker_first": ["/agent", "/agent/*", "/agents/*", "/api/*", "/auth/*", "/webhook", "/webhooks/*"]
+  },
+
+  "observability": {
+    "enabled": true,
+    // Think emits invoke_agent / chat / execute_tool / tool_approval spans here.
+    "traces": { "enabled": true }
+  },
+
+  "ai": { "binding": "AI", "remote": true },
+  "browser": { "binding": "BROWSER", "remote": true },
+  "ai_search_namespaces": [
+    { "binding": "AI_SEARCH", "namespace": "default", "remote": true }
+  ],
+  // Outbound email (replies). Inbound mail arrives via an Email Routing rule -> this Worker.
+  "send_email": [{ "name": "EMAIL", "remote": true }],
+
+  "durable_objects": {
+    "bindings": [
+      { "name": "LazyDog", "class_name": "LazyDog" },
+      { "name": "IdentityRegistry", "class_name": "IdentityRegistry" },
+      { "name": "VoiceBridge", "class_name": "VoiceBridge" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["LazyDog", "IdentityRegistry", "VoiceBridge"] }
+  ],
+
+  "vars": {
+    // workers-ai | anthropic | openai
+    "MODEL_PROVIDER": "workers-ai",
+    "MODEL_ID": "@cf/moonshotai/kimi-k2.6",
+    "AI_SEARCH_INSTANCE": "lazydog-docs",
+    "NOTES_MCP_URL": "https://lazydog-notes-mcp.<your-subdomain>.workers.dev/mcp",
+    "EMAIL_FROM": "lazydog@example.com",
+    "PUBLIC_URL": "",
+    // Comma-separated GitHub logins allowed to sign in. Empty = anyone with a GitHub account.
+    "ALLOWED_GITHUB_LOGINS": "",
+    "DEFAULT_TIMEZONE": "UTC"
+  },
+  // Secrets (wrangler secret put / .dev.vars): SESSION_SECRET, GITHUB_CLIENT_ID,
+  // GITHUB_CLIENT_SECRET, NOTES_MCP_SECRET, SLACK_BOT_TOKEN, SLACK_SIGNING_SECRET,
+  // SLACK_BOT_USER_ID, ANTHROPIC_API_KEY, OPENAI_API_KEY (optional per provider).
+
+  "env": {
+    // `wrangler deploy --env paid` — adds Sandbox (Containers), which needs Workers Paid.
+    // Bindings below are not inherited, so the full set is repeated.
+    "paid": {
+      "ai": { "binding": "AI" },
+      "browser": { "binding": "BROWSER" },
+      "ai_search_namespaces": [{ "binding": "AI_SEARCH", "namespace": "default" }],
+      "send_email": [{ "name": "EMAIL" }],
+      "containers": [
+        {
+          "class_name": "Sandbox",
+          "image": "./sandbox.Dockerfile",
+          "instance_type": "lite",
+          "max_instances": 2
+        }
+      ],
+      "durable_objects": {
+        "bindings": [
+          { "name": "LazyDog", "class_name": "LazyDog" },
+          { "name": "IdentityRegistry", "class_name": "IdentityRegistry" },
+          { "name": "VoiceBridge", "class_name": "VoiceBridge" },
+          { "name": "Sandbox", "class_name": "Sandbox" }
+        ]
+      },
+      "migrations": [
+        { "tag": "v1", "new_sqlite_classes": ["LazyDog", "IdentityRegistry", "VoiceBridge"] },
+        { "tag": "v2-paid", "new_sqlite_classes": ["Sandbox"] }
+      ],
+      "vars": {
+        "MODEL_PROVIDER": "workers-ai",
+        "MODEL_ID": "@cf/moonshotai/kimi-k2.6",
+        "AI_SEARCH_INSTANCE": "lazydog-docs",
+        "NOTES_MCP_URL": "https://lazydog-notes-mcp.<your-subdomain>.workers.dev/mcp",
+        "EMAIL_FROM": "lazydog@example.com",
+    "PUBLIC_URL": "",
+        "ALLOWED_GITHUB_LOGINS": "",
+        "DEFAULT_TIMEZONE": "UTC"
+      }
+    }
+  }
+}

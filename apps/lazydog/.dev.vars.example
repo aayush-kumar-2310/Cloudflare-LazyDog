@@ -1,0 +1,19 @@
+# Signs session cookies. Any long random string: `openssl rand -hex 32`
+SESSION_SECRET=dev-session-secret-change-me-0123456789abcdef
+# GitHub OAuth app (https://github.com/settings/developers). Callback: <origin>/auth/callback
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+# Local-only shortcut: enables /auth/dev?login=<name> on localhost. Never set in production.
+DEV_LOGIN=true
+# Must equal the notes-mcp Worker's NOTES_MCP_SECRET.
+NOTES_MCP_SECRET=dev-notes-secret-change-me
+# Slack app (optional): bot token, signing secret, bot user id
+SLACK_BOT_TOKEN=
+SLACK_SIGNING_SECRET=
+SLACK_BOT_USER_ID=
+# Only needed when MODEL_PROVIDER is anthropic / openai
+ANTHROPIC_API_KEY=
+OPENAI_API_KEY=
+
+# Local notes-mcp dev server (`npm run dev:notes`)
+NOTES_MCP_URL=http://localhost:8788/mcp

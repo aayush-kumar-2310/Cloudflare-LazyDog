@@ -1,0 +1,38 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "notes-mcp",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "apps/notes-mcp"
+      ],
+      "port": 8788
+    },
+    {
+      "name": "lazydog",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "apps/lazydog"
+      ],
+      "port": 5173
+    },
+    {
+      "name": "lazydog-offline",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:offline",
+        "-w",
+        "apps/lazydog"
+      ],
+      "port": 5173
+    }
+  ]
+}

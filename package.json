@@ -1,0 +1,21 @@
+{
+  "name": "lazydog-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w apps/lazydog",
+    "dev:notes": "npm run dev -w apps/notes-mcp",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "deploy": "npm run deploy -w apps/notes-mcp && npm run deploy -w apps/lazydog"
+  },
+  "allowScripts": {
+    "workerd@1.20260815.1": true,
+    "workerd@1.20261001.1": true,
+    "esbuild@0.28.1": true
+  }
+}
