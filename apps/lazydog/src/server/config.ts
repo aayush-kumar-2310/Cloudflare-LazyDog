@@ -28,6 +28,8 @@ export function config(env: Env) {
       .split(",")
       .map((login) => login.trim().toLowerCase())
       .filter(Boolean),
+    /** With no allowlist, sign-in is refused unless this is explicitly "true". */
+    openSignup: str((env as { OPEN_SIGNUP?: unknown }).OPEN_SIGNUP) === "true",
     sessionSecret: str(env.SESSION_SECRET),
     github: {
       clientId: str(env.GITHUB_CLIENT_ID),

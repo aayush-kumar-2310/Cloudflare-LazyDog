@@ -75,7 +75,7 @@ npm test          # both Workers, in the Workers runtime (vitest-pool-workers)
 npm run typecheck
 ```
 
-60 tests: the agent loop with a scripted model through the real Think runtime,
+67 tests: the agent loop with a scripted model through the real Think runtime,
 durable submissions and dedupe, reminders firing from a real alarm, the
 crash-and-resume job, webhook signing/replay/size rules, identity linking and
 its abuse guards, Slack and email routing, auth and routing, and the notes MCP

@@ -11,6 +11,7 @@ export const WEBHOOK_HEADERS = {
 
 const MAX_BODY_BYTES = 64 * 1024;
 const MAX_SKEW_SECONDS = 300;
+export const WEBHOOK_EVENTS_PER_HOUR = 60;
 
 export const webhookEventSchema = z.object({
   id: z.string().min(1).max(200).optional(),
@@ -88,6 +89,15 @@ export async function handleWebhook(request: Request, env: Env, now = Date.now()
       new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body))).slice(0, 16),
       (b) => b.toString(16).padStart(2, "0")
     ).join("");
+
+  // Counted only after authentication, so unsigned junk can't exhaust a source's budget.
+  const budget = await registry(env).allowWebhookDelivery(sourceId, WEBHOOK_EVENTS_PER_HOUR);
+  if (!budget.allowed) {
+    return Response.json(
+      { error: `rate limit: ${WEBHOOK_EVENTS_PER_HOUR} events per hour per source` },
+      { status: 429, headers: { "Retry-After": String(budget.retryAfterSeconds) } }
+    );
+  }
 
   const agent = await lazyDog(env, source.userId);
   const result = await agent.receiveWebhook({

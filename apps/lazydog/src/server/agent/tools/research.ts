@@ -55,18 +55,48 @@ export async function aiSearch(
 export function assertBrowsableUrl(raw: string): URL {
   const url = new URL(raw);
   if (!["http:", "https:"].includes(url.protocol)) throw new Error("Only http(s) URLs can be opened");
-  const host = url.hostname;
-  if (
+  if (url.username || url.password) throw new Error("URLs with credentials cannot be opened");
+  const host = url.hostname.toLowerCase().replace(/\.$/, "");
+  const blocked =
     host === "localhost" ||
     host.endsWith(".localhost") ||
     host.endsWith(".internal") ||
-    /^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(host) ||
+    host.endsWith(".local") ||
+    /^\d+$/.test(host) || // decimal IPv4 such as 2130706433
+    /^0x[0-9a-f]+$/i.test(host) ||
+    /^(0|10|127)\./.test(host) ||
+    /^169\.254\./.test(host) ||
+    /^192\.168\./.test(host) ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
-    host === "[::1]"
-  ) {
-    throw new Error("Private or local addresses cannot be opened");
-  }
+    /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host) || // carrier-grade NAT
+    (host.startsWith("[") && /^\[(::1?|f[cd]|fe8|::ffff:)/i.test(host)); // loopback, ULA, link-local, mapped
+  if (blocked) throw new Error("Private or local addresses cannot be opened");
   return url;
+}
+
+const MAX_REDIRECTS = 3;
+
+/**
+ * Plain HTTP GET for public pages. Redirects are followed by hand so every hop
+ * is re-checked; otherwise a public URL could bounce the fetch to a local one.
+ */
+export async function safeFetchText(start: URL): Promise<string> {
+  let url = assertBrowsableUrl(start.toString());
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const res = await fetch(url, {
+      headers: { Accept: "text/html,text/markdown;q=0.9,*/*;q=0.5", "User-Agent": "LazyDog/1.0 (+Cloudflare Agents)" },
+      redirect: "manual"
+    });
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get("Location");
+      if (!location) throw new Error(`redirect without Location (${res.status})`);
+      url = assertBrowsableUrl(new URL(location, url).toString());
+      continue;
+    }
+    if (!res.ok) throw new Error(`direct fetch failed (${res.status})`);
+    return res.text();
+  }
+  throw new Error("too many redirects");
 }
 
 /**
@@ -136,14 +166,6 @@ export function linksFromHtml(html: string, base: URL): string[] {
   return [...out];
 }
 
-async function directFetch(url: URL): Promise<string> {
-  const res = await fetch(url, {
-    headers: { Accept: "text/html,text/markdown;q=0.9,*/*;q=0.5", "User-Agent": "LazyDog/1.0 (+Cloudflare Agents)" },
-    redirect: "follow"
-  });
-  if (!res.ok) throw new Error(`direct fetch failed (${res.status})`);
-  return res.text();
-}
 
 /**
  * Run a Browser Run Quick Action with pacing; on rate limiting (or if the
@@ -195,7 +217,7 @@ export function createResearchTools(env: Env, aiSearchInstance: string, browserG
         const { value: markdown, via, note } = await withBrowserFallback(
           browserGate,
           () => browserMarkdown(env.BROWSER, { url: target.toString() }),
-          async () => htmlToText(await directFetch(target))
+          async () => htmlToText(await safeFetchText(target))
         );
         return {
           url: target.toString(),
@@ -215,7 +237,7 @@ export function createResearchTools(env: Env, aiSearchInstance: string, browserG
         const { value: links, via, note } = await withBrowserFallback(
           browserGate,
           () => browserLinks(env.BROWSER, { url: target.toString() }),
-          async () => linksFromHtml(await directFetch(target), target)
+          async () => linksFromHtml(await safeFetchText(target), target)
         );
         return { url: target.toString(), via, ...(note ? { note } : {}), links: links.slice(0, 150) };
       }

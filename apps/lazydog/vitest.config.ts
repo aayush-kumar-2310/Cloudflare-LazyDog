@@ -7,6 +7,13 @@ import { defineConfig } from "vitest/config";
 const slackCalls: Array<{ method: string; body: unknown }> = [];
 async function outbound(request: Request): Promise<Response> {
   const url = new URL(request.url);
+  // Public test pages for the browser fallback: one redirects to a local address.
+  if (url.hostname === "redirect.example.com") {
+    return new Response(null, { status: 302, headers: { Location: "http://127.0.0.1:8788/mcp" } });
+  }
+  if (url.hostname === "page.example.com") {
+    return new Response("<h1>Public page</h1><p>Hello.</p>", { headers: { "Content-Type": "text/html" } });
+  }
   if (url.hostname === "slack-mock.test" && url.pathname === "/__calls") {
     return Response.json(slackCalls.splice(0));
   }

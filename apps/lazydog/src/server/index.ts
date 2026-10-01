@@ -1,6 +1,6 @@
 import { getAgentByName } from "agents";
 import { handleAuth } from "./auth/routes";
-import { getSession } from "./auth/session";
+import { getSession, isSameOrigin } from "./auth/session";
 import { createIngressHost } from "./channels/ingress";
 import { handleWebhook } from "./channels/webhook";
 import { config } from "./config";
@@ -15,6 +15,7 @@ export { VoiceBridge } from "./voice/voice-bridge";
 export { Sandbox } from "@cloudflare/sandbox";
 
 const unauthorized = () => Response.json({ error: "unauthorized" }, { status: 401 });
+const forbidden = () => Response.json({ error: "forbidden" }, { status: 403 });
 
 const under = (pathname: string, prefix: string) =>
   pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -45,6 +46,9 @@ export default {
 
     if (under(pathname, "/agent")) {
       if (!session) return unauthorized();
+      // Cookie auth alone would let another site (or another Worker on the same
+      // workers.dev subdomain) open a socket as this user.
+      if (!isSameOrigin(request)) return forbidden();
       const agent = await getAgentByName(env.LazyDog as DurableObjectNamespace<LazyDog>, session.uid);
       return agent.fetch(request);
     }
@@ -54,7 +58,7 @@ export default {
     const voice = /^\/agents\/voice-bridge\/([^/]+)(\/.*)?$/.exec(pathname);
     if (voice) {
       if (!session) return unauthorized();
-      if (decodeURIComponent(voice[1]) !== session.uid) return Response.json({ error: "forbidden" }, { status: 403 });
+      if (!isSameOrigin(request) || decodeURIComponent(voice[1]) !== session.uid) return forbidden();
       const bridge = await getAgentByName(env.VoiceBridge as DurableObjectNamespace<VoiceBridge>, session.uid);
       return bridge.fetch(request);
     }

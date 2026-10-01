@@ -97,16 +97,27 @@ Versions: `agents@0.24`, `@cloudflare/think@0.19`, `ai@7`, Wrangler 4.
 ## Security model
 
 * Web: GitHub OAuth, HMAC-signed HttpOnly SameSite=Lax cookie, Origin check on
-  state-changing API calls; optional `ALLOWED_GITHUB_LOGINS` allowlist. The dev
-  login exists only with `DEV_LOGIN=true` on a loopback host.
-* Agents are selected from the session, never the URL.
+  state-changing API calls and on agent/voice WebSockets (cookies alone would
+  admit other Workers on the same workers.dev subdomain). Sign-in is
+  **deny-by-default**: only `ALLOWED_GITHUB_LOGINS`, unless `OPEN_SIGNUP=true`
+  — every turn spends the account's AI budget. The dev login exists only with
+  `DEV_LOGIN=true` on a loopback host.
+* Agents are selected from the session, never the URL. Agent state is
+  read-only for clients (`validateStateChange` rejects browser writes, so the
+  activity log can't be forged); `@callable` inputs are validated.
 * Slack: signing-secret verification with a 5-minute window; only DMs and
   mentions are answered; bot/self messages ignored.
 * Email: DKIM/DMARC pass required; auto-replies ignored.
 * Webhooks: per-source HMAC over `source.timestamp.body`, 5-minute window,
-  64 KB cap, idempotent, restricted tools — see [WEBHOOKS.md](WEBHOOKS.md).
+  64 KB cap, idempotent, restricted tools, 60 authenticated events per source
+  per hour — see [WEBHOOKS.md](WEBHOOKS.md).
+* Browser: public http(s) only (private, loopback, link-local, CGNAT, decimal
+  and hex IPs, `.local`, credentials in URLs are refused); the direct-fetch
+  fallback follows redirects by hand and re-checks every hop.
 * Notes MCP: per-user capability token `userId.HMAC(secret, userId)`; the
-  server derives the user only from a token it can verify.
+  server derives the user only from a token it can verify. Tokens don't
+  expire; rotating `NOTES_MCP_SECRET` (on both Workers) revokes all of them.
+* Bookkeeping tables (`ld_inbound`, `ld_deliveries`) keep 30 days.
 * Side-effecting tools: destructive MCP tools need approval; code runs only in
   a container (paid) or the network-less workspace bash.
 

@@ -47,8 +47,10 @@
     "NOTES_MCP_URL": "https://lazydog-notes-mcp.<your-subdomain>.workers.dev/mcp",
     "EMAIL_FROM": "lazydog@example.com",
     "PUBLIC_URL": "",
-    // Comma-separated GitHub logins allowed to sign in. Empty = anyone with a GitHub account.
-    "ALLOWED_GITHUB_LOGINS": "",
+    // Comma-separated GitHub logins allowed to sign in (they are also admins).
+    // Empty = nobody, unless OPEN_SIGNUP is "true". Every turn spends the account's AI budget.
+    "ALLOWED_GITHUB_LOGINS": "aayush-kumar-2310",
+    "OPEN_SIGNUP": "false",
     "DEFAULT_TIMEZONE": "UTC"
   },
   // Secrets (wrangler secret put / .dev.vars): SESSION_SECRET, GITHUB_CLIENT_ID,
@@ -90,7 +92,8 @@
         "NOTES_MCP_URL": "https://lazydog-notes-mcp.<your-subdomain>.workers.dev/mcp",
         "EMAIL_FROM": "lazydog@example.com",
     "PUBLIC_URL": "",
-        "ALLOWED_GITHUB_LOGINS": "",
+        "ALLOWED_GITHUB_LOGINS": "aayush-kumar-2310",
+        "OPEN_SIGNUP": "false",
         "DEFAULT_TIMEZONE": "UTC"
       }
     }

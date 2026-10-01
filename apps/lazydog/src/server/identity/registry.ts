@@ -75,6 +75,11 @@ export class IdentityRegistry extends DurableObject<Env> {
         identity_key TEXT NOT NULL,
         at INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS ld_webhook_hits (
+        source_id TEXT NOT NULL,
+        at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_webhook_hits ON ld_webhook_hits (source_id, at);
       CREATE TABLE IF NOT EXISTS ld_webhook_sources (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
@@ -210,6 +215,31 @@ export class IdentityRegistry extends DurableObject<Env> {
         userId
       ).rowsWritten > 0
     );
+  }
+
+  /**
+   * Count an authenticated delivery against the source's hourly budget. Each
+   * accepted event costs a model turn, so a runaway sender is cut off here.
+   */
+  async allowWebhookDelivery(
+    sourceId: string,
+    limitPerHour: number,
+    now = Date.now()
+  ): Promise<{ allowed: boolean; retryAfterSeconds: number }> {
+    const sql = this.ctx.storage.sql;
+    const windowStart = now - 60 * 60 * 1000;
+    sql.exec("DELETE FROM ld_webhook_hits WHERE at < ?", windowStart);
+    const rows = sql
+      .exec<{ at: number }>(
+        "SELECT at FROM ld_webhook_hits WHERE source_id = ? ORDER BY at ASC",
+        sourceId
+      )
+      .toArray();
+    if (rows.length >= limitPerHour) {
+      return { allowed: false, retryAfterSeconds: Math.ceil((rows[0].at + 3_600_000 - now) / 1000) };
+    }
+    sql.exec("INSERT INTO ld_webhook_hits (source_id, at) VALUES (?, ?)", sourceId, now);
+    return { allowed: true, retryAfterSeconds: 0 };
   }
 
   async getWebhookSource(id: string): Promise<WebhookSourceSecret | null> {

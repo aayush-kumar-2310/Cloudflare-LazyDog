@@ -43,14 +43,17 @@ import {
 } from "./tools/reminders";
 import {
   aiSearch,
+  assertBrowsableUrl,
   BROWSER_INTERVAL_MS,
   createResearchTools,
   htmlToText,
   RateGate,
+  safeFetchText,
   withBrowserFallback
 } from "./tools/research";
 import {
   jobSummary,
+  RESEARCH_STEPS,
   runResearchSteps,
   type ResearchSnapshot,
   type ResearchStep
@@ -79,6 +82,7 @@ export type WebhookDelivery = {
 const NOTES_SERVER = "notes";
 const RESEARCH_FIBER = "research-job";
 const MAX_WEBHOOK_PAYLOAD_CHARS = 8_000;
+const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** Tools a webhook-triggered turn may use. Everything else is filtered out. */
 export const WEBHOOK_TOOL_ALLOWLIST = new Set([
@@ -180,6 +184,14 @@ export class LazyDog extends Think<Env, LazyDogState> {
     terminalMessage: "LazyDog was interrupted and could not finish this reply. Please ask again."
   };
 
+  /**
+   * State is written only by the agent itself. Without this, a browser could
+   * call `agent.setState()` and, for example, forge activity-log entries.
+   */
+  validateStateChange(_next: LazyDogState, source: unknown) {
+    if (source !== "server") throw new Error("LazyDog state is read-only for clients");
+  }
+
   // ── Model, prompt, channels ────────────────────────────────────────────
 
   getModel() {
@@ -274,6 +286,11 @@ export class LazyDog extends Think<Env, LazyDogState> {
       request_id TEXT PRIMARY KEY,
       delivered_at INTEGER NOT NULL
     )`;
+
+    // Delivery bookkeeping only matters while a turn can still be recovered.
+    const cutoff = Date.now() - RETENTION_MS;
+    this.sql`DELETE FROM ld_inbound WHERE created_at < ${cutoff}`;
+    this.sql`DELETE FROM ld_deliveries WHERE delivered_at < ${cutoff}`;
 
     liveAgents.set(this.name, new WeakRef(this));
     ensureObservabilitySubscription();
@@ -677,12 +694,13 @@ export class LazyDog extends Think<Env, LazyDogState> {
       }
       case "read": {
         const sources = Array.isArray(s.results.search) ? (s.results.search as { url: string }[]) : [];
-        const url = sources.find((x) => /^https?:/.test(x.url))?.url;
-        if (!url) throw new Error("no source URL to read");
+        const raw = sources.find((x) => /^https?:/.test(x.url))?.url;
+        if (!raw) throw new Error("no source URL to read");
+        const url = assertBrowsableUrl(raw).toString();
         const { value, via } = await withBrowserFallback(
           this.#browserGate,
           () => browserMarkdown(this.env.BROWSER, { url }),
-          async () => htmlToText(await (await fetch(url)).text())
+          async () => htmlToText(await safeFetchText(new URL(url)))
         );
         return { url, via, markdown: value.slice(0, 6_000) };
       }
@@ -743,7 +761,8 @@ export class LazyDog extends Think<Env, LazyDogState> {
   // ── Client-callable methods ────────────────────────────────────────────
 
   @callable()
-  setTimezone(timezone: string) {
+  setTimezone(timezone: unknown) {
+    if (typeof timezone !== "string" || timezone.length > 64) return { ok: false as const };
     try {
       new Intl.DateTimeFormat("en-US", { timeZone: timezone });
     } catch {
@@ -754,14 +773,20 @@ export class LazyDog extends Think<Env, LazyDogState> {
   }
 
   @callable()
-  cancelReminderFromUi(id: string) {
-    return this.cancelReminder(id);
+  cancelReminderFromUi(id: unknown) {
+    return typeof id === "string" ? this.cancelReminder(id) : false;
   }
 
   /** Demo control for the durability walkthrough: optionally crash after a step. */
   @callable()
-  startResearchJobFromUi(topic: string, crashAfter?: ResearchStep) {
-    return this.startResearchJob(topic, { crashAfter });
+  startResearchJobFromUi(topic: unknown, crashAfter?: unknown) {
+    if (typeof topic !== "string" || topic.trim().length < 3 || topic.length > 200) {
+      throw new Error("topic must be 3–200 characters");
+    }
+    if (crashAfter !== undefined && !RESEARCH_STEPS.includes(crashAfter as ResearchStep)) {
+      throw new Error(`crashAfter must be one of ${RESEARCH_STEPS.join(", ")}`);
+    }
+    return this.startResearchJob(topic.trim(), { crashAfter: crashAfter as ResearchStep | undefined });
   }
 
   @callable()

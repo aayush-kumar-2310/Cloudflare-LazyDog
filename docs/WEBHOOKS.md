@@ -36,7 +36,9 @@ can't be replayed for another source, another body, or after 5 minutes.
 
 Responses: `202 {accepted, submissionId, status, eventId}`; `401` bad/missing
 signature, unknown source, or stale timestamp (identical for all three, so
-source ids can't be probed); `400` invalid JSON/schema; `413` body over 64 KB.
+source ids can't be probed); `400` invalid JSON/schema; `413` body over 64 KB;
+`429` (with `Retry-After`) beyond 60 authenticated events per source per hour —
+each event costs a model turn.
 
 ### From a terminal
 

@@ -47,7 +47,7 @@ Edit `apps/lazydog/wrangler.jsonc` → `vars`:
 | Var | Value |
 |---|---|
 | `NOTES_MCP_URL` | `https://lazydog-notes-mcp.<subdomain>.workers.dev/mcp` |
-| `ALLOWED_GITHUB_LOGINS` | your GitHub login (only these can sign in; they are also admins) |
+| `ALLOWED_GITHUB_LOGINS` | your GitHub login. Only these can sign in, and they are admins. Empty means **nobody** can sign in unless `OPEN_SIGNUP="true"` |
 | `PUBLIC_URL` | `https://lazydog.<subdomain>.workers.dev` (used in email replies) |
 | `MODEL_PROVIDER` / `MODEL_ID` | default Workers AI `@cf/qwen/qwen3.8-27b` (see below); or `anthropic` / `openai` |
 

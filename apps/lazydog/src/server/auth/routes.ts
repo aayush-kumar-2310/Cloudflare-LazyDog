@@ -18,16 +18,32 @@ const redirect = (location: string, cookies: string[] = []) => {
   return new Response(null, { status: 302, headers });
 };
 
+/**
+ * LazyDog is a personal agent and every turn spends the account's AI budget,
+ * so sign-in is deny-by-default: only ALLOWED_GITHUB_LOGINS, unless the
+ * operator explicitly sets OPEN_SIGNUP=true.
+ */
+export function signInAllowed(env: Env, login: string, viaDevLogin = false): boolean {
+  const c = config(env);
+  if (viaDevLogin) return true;
+  if (c.allowedGithubLogins.includes(login.toLowerCase())) return true;
+  return c.allowedGithubLogins.length === 0 && c.openSignup;
+}
+
 async function startSession(
   request: Request,
   env: Env,
-  github: GitHubUser
+  github: GitHubUser,
+  viaDevLogin = false
 ): Promise<Response> {
   const c = config(env);
-  if (c.allowedGithubLogins.length && !c.allowedGithubLogins.includes(github.login.toLowerCase())) {
-    return new Response("This GitHub account is not allowed to use this LazyDog deployment.", {
-      status: 403
-    });
+  if (!signInAllowed(env, github.login, viaDevLogin)) {
+    return new Response(
+      c.allowedGithubLogins.length
+        ? "This GitHub account is not allowed to use this LazyDog deployment."
+        : "Sign-in is closed: set ALLOWED_GITHUB_LOGINS (or OPEN_SIGNUP=true) on this deployment.",
+      { status: 403 }
+    );
   }
   const user = await registry(env).loginWithGitHub(String(github.id), github.login);
   const token = await signSession(c.sessionSecret, { uid: user.userId, login: user.login });
@@ -96,7 +112,7 @@ export async function handleAuth(request: Request, env: Env): Promise<Response> 
       const id = -Math.abs(
         [...login].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7)
       );
-      return startSession(request, env, { id, login: `dev-${login}` });
+      return startSession(request, env, { id, login: `dev-${login}` }, true);
     }
 
     case "/auth/logout":
