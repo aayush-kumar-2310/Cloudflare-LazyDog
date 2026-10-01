@@ -53,7 +53,7 @@ Edit `apps/lazydog/wrangler.jsonc` → `vars`:
 | `NOTES_MCP_URL` | `https://lazydog-notes-mcp.<subdomain>.workers.dev/mcp` |
 | `ALLOWED_GITHUB_LOGINS` | your GitHub login (only these can sign in; they are also admins) |
 | `PUBLIC_URL` | `https://lazydog.<subdomain>.workers.dev` (used in email replies) |
-| `MODEL_PROVIDER` / `MODEL_ID` | default Workers AI `@cf/moonshotai/kimi-k2.6`; or `anthropic` / `openai` |
+| `MODEL_PROVIDER` / `MODEL_ID` | default Workers AI `@cf/qwen/qwen3.8-27b` (see below); or `anthropic` / `openai` |
 
 Secrets:
 
@@ -120,6 +120,24 @@ npm run deploy:paid      # builds with CLOUDFLARE_ENV=paid: adds the Sandbox con
 
 The paid environment deploys as a separate Worker (`lazydog-paid`) with its
 own secrets — repeat the `secret put` commands with `--env paid`.
+
+## Model choice and the free-plan budget
+
+Many Workers AI models (Kimi K2.6, GLM-5.3, DeepSeek V4) return **5035: not
+available on the Workers Free plan**. Free-plan tool-calling models were
+benchmarked on four LazyDog turns (browse a page, save it as a note, "remind
+me tomorrow at 10 AM", recall notes and reminders):
+
+| Model | Passed | Avg latency | Notes |
+|---|---|---|---|
+| `@cf/qwen/qwen3.8-27b` | 4/4 | 18.6 s | correct tools and arguments every time — **default** |
+| `@cf/openai/gpt-oss-120b` | 2/4 | 26.5 s | twice degenerated into repeated `!` with no tool call |
+| `@cf/zai-org/glm-4.7-flash` | 1/1 run | 22.0 s | remaining runs hit the daily quota |
+
+Workers Free includes **10,000 Neurons per day**. An agent turn sends ~20 tool
+schemas plus history, so expect a few dozen turns per day; after that every
+turn fails with error 4006 (shown to the user as a plain message) until 00:00
+UTC. For more, use Workers Paid or `MODEL_PROVIDER=anthropic|openai`.
 
 ## Local development
 

@@ -214,3 +214,30 @@ describe("repetition guard", () => {
     expect((await run([" ".repeat(50), "ok"])).stopped).toBe(false);
   });
 });
+
+describe("repetition guard on reasoning", () => {
+  it("also stops degenerate reasoning", async () => {
+    let stopped = false;
+    const stream = new ReadableStream({
+      start(c) {
+        c.enqueue({ type: "reasoning-delta", id: "r", text: "think" + "!".repeat(30) });
+        c.enqueue({ type: "text-delta", id: "t", text: "never shown" });
+        c.close();
+      }
+    }).pipeThrough(repetitionGuard(10)({ tools: {}, stopStream: () => { stopped = true; } }) as never);
+    const parts: Array<{ type: string; text?: string }> = [];
+    for await (const p of stream as AsyncIterable<{ type: string; text?: string }>) parts.push(p);
+    expect(stopped).toBe(true);
+    expect(parts).toEqual([{ type: "reasoning-delta", id: "r", text: STOPPED_NOTE }]);
+  });
+});
+
+import { friendlyModelError } from "../src/server/agent/model-errors";
+
+describe("model error messages", () => {
+  it("explains quota and plan errors, ignores others", () => {
+    expect(friendlyModelError(new Error("4006: you have used up your daily free allocation of 10,000 neurons"))).toMatch(/resets at 00:00 UTC/);
+    expect(friendlyModelError({ message: "AI_APICallError", responseBody: "5035: Model x is not available on the Workers Free plan" })).toMatch(/qwen3\.8-27b/);
+    expect(friendlyModelError(new Error("socket hang up"))).toBeNull();
+  });
+});

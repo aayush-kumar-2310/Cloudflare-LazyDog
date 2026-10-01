@@ -57,7 +57,7 @@ Versions: `agents@0.24`, `@cloudflare/think@0.19`, `ai@7`, Wrangler 4.
 | Tool | Backed by | Side effects / approval |
 |---|---|---|
 | `ai_search` | AI Search binding (`ai_search_namespaces`) | read-only; returns ranked sources rendered as citations |
-| `browser_open`, `browser_links` | Browser Run Quick Actions (`agents/browser`) | read-only; public http(s) only (no localhost/private ranges) |
+| `browser_open`, `browser_links` | Browser Run Quick Actions (`agents/browser`) | read-only; public http(s) only; paced, with a labelled direct-fetch fallback (below) |
 | `run_python` | `@cloudflare/sandbox` container | only when the Sandbox binding exists (`--env paid`) |
 | `bash` + file tools | Think workspace (in-isolate, no network) | free-plan code execution fallback |
 | `notes_*` | MCP client → notes Worker | `notes_delete_note` requires approval (server marks it `destructiveHint`) |
@@ -130,8 +130,30 @@ Versions: `agents@0.24`, `@cloudflare/think@0.19`, `ai@7`, Wrangler 4.
 * **Free plan first.** Sandbox and Dynamic Workers need Workers Paid, so they
   live behind `--env paid`; the default deploy uses Think's workspace bash.
 * **Voice is push-to-talk and not streamed.** The bridge waits for the full
-  LazyDog turn before speaking; simpler and consistent with other channels,
-  slower to first audio.
+  LazyDog turn before speaking (capped at 45 s); simpler and consistent with
+  other channels, slower to first audio.
+
+## What testing against real services changed
+
+Everything below was found by running LazyDog against real Workers AI,
+Browser Run, the Notes MCP server and the voice pipeline on a Workers Free
+account (`scripts/chat.mjs` drives the chat protocol from a terminal):
+
+| Finding | Fix |
+|---|---|
+| The docs' default model (`@cf/moonshotai/kimi-k2.6`, also GLM-5.3, DeepSeek V4) returns **5035: not available on Workers Free**. | Benchmarked free-plan tool-calling models; Qwen 3.8 27B passed 4/4 and is the default (DEPLOY.md). |
+| The daily 10,000-neuron allowance runs out after a few dozen agent turns; the raw `4006` error reached the chat. | Provider errors arrive as stream parts (not thrown, so `onChatError` misses them); a stream transform rewrites quota/plan errors into plain messages. |
+| Answers were **cut off mid-sentence**: Workers AI applies a small output cap when none is sent. | `maxOutputTokens: 4096` per turn. |
+| Browser Run Free allows **one Quick Action every 10 s**; the model fired several and got 429s. | Per-agent pacing gate; if a call would wait >20 s or still gets 429, fall back to a plain HTTP fetch, labelled `via: "direct-fetch"`. |
+| gpt-oss occasionally **degenerates into `!!!!…`** (in the answer or the reasoning stream) until the token cap. | Stream transform watches both and stops it via the AI SDK's `stopStream`; default model switched to Qwen. |
+| Think's **stream-stall watchdog is off by default**, so a hung stream blocks the user's turn queue on every channel. | `chatStreamStallTimeoutMs = 60_000` (bounded recovery). |
+| Voice: the client **stops sending audio when muted**; Flux STT then drops after ~5 s, which ends the call and **cuts off reply playback**. | Push-to-talk gate implemented as a custom `audioInput` that sends silence between presses, so the session stays alive. |
+| gpt-oss emits markdown even on the voice channel. | `beforeSynthesize` strips markdown before TTS. |
+
+Verified end to end on real services: streaming chat, browser research,
+MCP note create/list, reminder parsing ("tomorrow at 10 AM" → exact UTC
+time), durable job crash/resume, Think chat recovery of an interrupted turn,
+and voice (Flux STT → LazyDog turn → Aura TTS) using synthesized speech.
 
 ## Not done / known gaps
 
@@ -139,5 +161,9 @@ Versions: `agents@0.24`, `@cloudflare/think@0.19`, `ai@7`, Wrangler 4.
 * No unlink for channel identities (no API in `agents@0.24`).
 * Slack approval buttons: approvals happen in the web UI; Slack/email get a
   message saying approval is pending.
-* Voice and the real-model paths need a Cloudflare login to exercise; they are
-  type-checked and wired but were not run end to end locally.
+* AI Search is wired and tested in isolation but the `lazydog-docs` instance
+  must be created on the account before the research path returns results.
+* Voice was verified with synthesized speech over the real WebSocket protocol,
+  not yet with a person holding a microphone in a browser.
+* Model quality is limited to Workers Free models; the agent occasionally
+  embellishes beyond what a page says.

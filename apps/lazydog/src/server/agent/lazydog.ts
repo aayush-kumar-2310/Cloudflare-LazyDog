@@ -32,6 +32,7 @@ import {
   type ActivityPatch
 } from "./activity";
 import { createModel } from "./model";
+import { friendlyErrorTransform, friendlyModelError } from "./model-errors";
 import { repetitionGuard } from "./repetition-guard";
 import { CHANNEL_INSTRUCTIONS, SOUL } from "./prompts";
 import { createMcpServerTools, NOTES_TOOL_PREFIX } from "./tools/notes-mcp";
@@ -345,7 +346,7 @@ export class LazyDog extends Think<Env, LazyDogState> {
       // Workers AI applies a small default output cap when none is sent, which
       // cut answers off mid-sentence.
       maxOutputTokens: 4_096,
-      experimental_transform: repetitionGuard(),
+      experimental_transform: [repetitionGuard(), friendlyErrorTransform()],
       system:
         `${ctx.system}\n\n## Now\nCurrent time: ${local} (${tz}); UTC ${now.toISOString()}.` +
         `\nActive channel: ${channel}.` +
@@ -400,6 +401,13 @@ export class LazyDog extends Think<Env, LazyDogState> {
       detail: preview(result.error ?? textOf(result.message))
     });
     await this.deliverToOrigin(result, waiting);
+  }
+
+  onChatError(error: unknown) {
+    const friendly = friendlyModelError(error);
+    if (!friendly) return error;
+    this.record({ kind: "error", status: "error", channel: this.channelId, title: "Model unavailable", detail: friendly });
+    return new Error(friendly);
   }
 
   // ── Channel entry points (called over RPC by the Worker) ──────────────

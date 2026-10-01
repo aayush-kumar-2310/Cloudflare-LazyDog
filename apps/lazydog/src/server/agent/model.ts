@@ -6,7 +6,7 @@ import { config } from "../config";
 import { createMockModel } from "./mock-model";
 
 const DEFAULT_MODELS = {
-  "workers-ai": "@cf/openai/gpt-oss-120b",
+  "workers-ai": "@cf/qwen/qwen3.8-27b",
   anthropic: "claude-sonnet-5",
   openai: "gpt-5.1"
 } as const;
