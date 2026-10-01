@@ -72,6 +72,7 @@ export type LazyDogState = {
     sandbox: boolean;
     slack: boolean;
     email: boolean;
+    payments: boolean;
   };
 };
 

@@ -11,6 +11,7 @@ import type { VoiceBridge } from "./voice/voice-bridge";
 export { LazyDog } from "./agent/lazydog";
 export { IdentityRegistry } from "./identity/registry";
 export { VoiceBridge } from "./voice/voice-bridge";
+export { PremiumMCP } from "./payments/premium-mcp";
 // Container-backed Sandbox Durable Object; bound only in the `paid` environment.
 export { Sandbox } from "@cloudflare/sandbox";
 

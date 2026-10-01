@@ -33,11 +33,13 @@
     "bindings": [
       { "name": "LazyDog", "class_name": "LazyDog" },
       { "name": "IdentityRegistry", "class_name": "IdentityRegistry" },
-      { "name": "VoiceBridge", "class_name": "VoiceBridge" }
+      { "name": "VoiceBridge", "class_name": "VoiceBridge" },
+      { "name": "PremiumMCP", "class_name": "PremiumMCP" }
     ]
   },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["LazyDog", "IdentityRegistry", "VoiceBridge"] }
+    { "tag": "v1", "new_sqlite_classes": ["LazyDog", "IdentityRegistry", "VoiceBridge"] },
+    { "tag": "v2-payments", "new_sqlite_classes": ["PremiumMCP"] }
   ],
 
   "vars": {
@@ -55,7 +57,10 @@
     // Empty = nobody, unless OPEN_SIGNUP is "true". Every turn spends the account's AI budget.
     "ALLOWED_GITHUB_LOGINS": "aayush-kumar-2310",
     "OPEN_SIGNUP": "false",
-    "DEFAULT_TIMEZONE": "UTC"
+    "DEFAULT_TIMEZONE": "UTC",
+    // x402 demo payments on Base Sepolia (testnet). Recipient wallet address;
+    // the payer key is the X402_PRIVATE_KEY secret. Both empty = payments off.
+    "X402_PAY_TO": ""
   },
   // Secrets (wrangler secret put / .dev.vars): SESSION_SECRET, GITHUB_CLIENT_ID,
   // GITHUB_CLIENT_SECRET, NOTES_MCP_SECRET, SLACK_BOT_TOKEN, SLACK_SIGNING_SECRET,
@@ -82,12 +87,14 @@
           { "name": "LazyDog", "class_name": "LazyDog" },
           { "name": "IdentityRegistry", "class_name": "IdentityRegistry" },
           { "name": "VoiceBridge", "class_name": "VoiceBridge" },
+          { "name": "PremiumMCP", "class_name": "PremiumMCP" },
           { "name": "Sandbox", "class_name": "Sandbox" }
         ]
       },
       "migrations": [
         { "tag": "v1", "new_sqlite_classes": ["LazyDog", "IdentityRegistry", "VoiceBridge"] },
-        { "tag": "v2-paid", "new_sqlite_classes": ["Sandbox"] }
+        { "tag": "v2-payments", "new_sqlite_classes": ["PremiumMCP"] },
+        { "tag": "v3-paid", "new_sqlite_classes": ["Sandbox"] }
       ],
       "vars": {
         "MODEL_PROVIDER": "workers-ai",
@@ -99,7 +106,8 @@
     "PUBLIC_URL": "https://lazydog-paid.kumar-aayush2310.workers.dev",
         "ALLOWED_GITHUB_LOGINS": "aayush-kumar-2310",
         "OPEN_SIGNUP": "false",
-        "DEFAULT_TIMEZONE": "UTC"
+        "DEFAULT_TIMEZONE": "UTC",
+        "X402_PAY_TO": ""
       }
     }
   }

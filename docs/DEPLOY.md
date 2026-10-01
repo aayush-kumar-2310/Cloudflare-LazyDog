@@ -117,6 +117,28 @@ npm run deploy:paid      # builds with CLOUDFLARE_ENV=paid: adds the Sandbox con
 The paid environment deploys as a separate Worker (`lazydog-paid`) with its
 own secrets — repeat the `secret put` commands with `--env paid`.
 
+## Payments demo (optional, testnet, no real money)
+
+LazyDog can pay for a "premium brief" with x402 on Base Sepolia. You need two
+testnet wallets (or one, paying itself) — do this yourself; never reuse a key
+that holds real funds:
+
+1. Create a **new** EVM wallet for the agent to pay from, and note a
+   recipient address (any address you control).
+2. Fund the payer with test USDC on **Base Sepolia** from
+   <https://faucet.circle.com/>. The payer needs no ETH: the x402 facilitator
+   submits the transfer.
+3. Configure and redeploy:
+   ```bash
+   cd apps/lazydog
+   npx wrangler secret put X402_PRIVATE_KEY      # the payer's private key (0x…)
+   # set "X402_PAY_TO": "0x<recipient>" in wrangler.jsonc vars, then:
+   npm run deploy
+   ```
+4. Ask LazyDog for "a premium brief on durable execution". Approve the card
+   (it shows the $0.01 price); the activity log records the policy decision
+   and the brief arrives. Check the transfer on <https://sepolia.basescan.org>.
+
 ## Model choice and the free-plan budget
 
 Many Workers AI models (Kimi K2.6, GLM-5.3, DeepSeek V4) return **5035: not

@@ -63,7 +63,30 @@ Versions: `agents@0.24`, `@cloudflare/think@0.19`, `ai@7`, Wrangler 4.
 | `notes_*` | MCP client → notes Worker | `notes_delete_note` requires approval (server marks it `destructiveHint`) |
 | `schedule_reminder`, `list_reminders`, `cancel_reminder` | Agent `schedule()` (DO alarms) | validated: explicit UTC offset, future, ≤1 year |
 | `start_research_job` | managed fiber | durable background job (below) |
+| `buy_premium_brief` | x402 client → paid MCP server | **always** needs approval; testnet-only payment policy (below) |
 | `set_context` | Think Session memory block | not available to webhook turns |
+
+## Payments (x402, testnet)
+
+`Agent → payment tool → human approval → payment provider`:
+
+1. The model calls `buy_premium_brief` ($0.01). The tool has `needsApproval`,
+   so the turn pauses and the web UI shows an approval card with the price.
+2. On approval, LazyDog calls the paid MCP server (`PremiumMCP`, an
+   `McpAgent` wrapped with the SDK's `withX402`, reached over the Agents RPC
+   transport inside this Worker) through `withX402Client`.
+3. The server answers with x402 payment requirements. The client's
+   confirmation callback is `choosePayment`, a machine-side policy: Base
+   Sepolia only, Circle test USDC only, our configured recipient only, at most
+   $0.05. Anything else is refused and logged.
+4. The client signs an EIP-3009 authorization with the agent's testnet key;
+   the server verifies and settles it through the public x402 facilitator and
+   returns the brief. Every decision lands in the activity log.
+
+Off unless `X402_PAY_TO` and the `X402_PRIVATE_KEY` secret are both set.
+Tests run the whole flow against a stub facilitator that rejects every
+payment, so nothing can settle. Tradeoff: `withX402` currently supports the
+deprecated `McpAgent` server path, not `createMcpHandler`.
 
 ## Durability
 
@@ -168,7 +191,8 @@ and voice (Flux STT → LazyDog turn → Aura TTS) using synthesized speech.
 
 ## Not done / known gaps
 
-* Payments (x402/MPP) were a stretch goal and are not implemented.
+* Payments are x402 on **testnet** only (Base Sepolia test USDC); MPP and
+  mainnet are deliberately not wired.
 * No unlink for channel identities (no API in `agents@0.24`).
 * Slack approval buttons: approvals happen in the web UI; Slack/email get a
   message saying approval is pending.

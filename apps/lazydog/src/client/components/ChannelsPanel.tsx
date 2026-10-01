@@ -58,6 +58,7 @@ export function ChannelsPanel({
         <span>Email: {me.channels.email ?? "not configured"}</span>
         <span>AI Search: {caps?.aiSearch ? "on" : "off"}</span>
         <span>Sandbox: {caps?.sandbox ? "on" : "off (free plan)"}</span>
+        <span>Payments: {caps?.payments ? "x402 testnet" : "off"}</span>
         <span className="col-span-2">
           Notes MCP: {state?.mcp.notes ?? "…"}
           {state?.mcp.notes === "failed" && (

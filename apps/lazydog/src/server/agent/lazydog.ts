@@ -23,7 +23,12 @@ import type {
   WebhookEvent
 } from "../../shared/types";
 import { createChannelHost } from "../channels/host";
-import { config, slackConfigured } from "../config";
+import { config, paymentsConfigured, slackConfigured } from "../config";
+import { choosePayment, PAYMENT_NETWORK, PREMIUM_BRIEF_PRICE_USD } from "../payments/policy";
+import type { PremiumMCP } from "../payments/premium-mcp";
+import { withX402Client } from "agents/x402";
+import { toClientEvmSigner } from "@x402/evm";
+import { privateKeyToAccount } from "viem/accounts";
 import {
   activityFromObservability,
   preview,
@@ -80,6 +85,7 @@ export type WebhookDelivery = {
 };
 
 const NOTES_SERVER = "notes";
+const PREMIUM_SERVER = "premium";
 const RESEARCH_FIBER = "research-job";
 const MAX_WEBHOOK_PAYLOAD_CHARS = 8_000;
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -166,7 +172,7 @@ export class LazyDog extends Think<Env, LazyDogState> {
     jobs: [],
     timezone: "UTC",
     mcp: { notes: "not-configured" },
-    capabilities: { aiSearch: false, browser: false, sandbox: false, slack: false, email: false }
+    capabilities: { aiSearch: false, browser: false, sandbox: false, slack: false, email: false, payments: false }
   };
 
   // MCP tools are wrapped explicitly (notes_*) so destructive ones need approval.
@@ -252,6 +258,7 @@ export class LazyDog extends Think<Env, LazyDogState> {
         now: () => new Date()
       }),
       ...this.notesTools(),
+      ...this.paymentTools(),
       start_research_job: tool({
         description:
           "Start a durable background research job (search → read → summarize → save as a note). " +
@@ -262,10 +269,64 @@ export class LazyDog extends Think<Env, LazyDogState> {
     };
   }
 
-  /** The notes server's id is assigned by addMcpServer; resolve it by name. */
-  private notesServerId(): string | undefined {
+  /** MCP server ids are assigned by addMcpServer; resolve them by name. */
+  private mcpServerId(name: string): string | undefined {
     const servers = this.getMcpServers().servers;
-    return Object.keys(servers).find((id) => servers[id].name === NOTES_SERVER);
+    return Object.keys(servers).find((id) => servers[id].name === name);
+  }
+
+  private notesServerId(): string | undefined {
+    return this.mcpServerId(NOTES_SERVER);
+  }
+
+  /**
+   * Agent → payment tool → human approval → payment provider.
+   * The tool always needs approval (the UI shows the price); after approval,
+   * `choosePayment` is the x402 confirmation callback, so the agent signs only
+   * a testnet, test-USDC payment to our recipient within the hard cap.
+   */
+  private paymentTools(): ToolSet {
+    if (!paymentsConfigured(this.env) || !this.mcpServerId(PREMIUM_SERVER)) return {};
+    return {
+      buy_premium_brief: tool({
+        description:
+          `Buy a sourced premium research brief for $${PREMIUM_BRIEF_PRICE_USD} in TEST USDC on Base Sepolia ` +
+          "(x402). Always requires the user's approval. Use only when the user asks for a premium brief.",
+        inputSchema: z.object({ topic: z.string().min(3).max(200) }),
+        needsApproval: true,
+        execute: async ({ topic }) => this.buyPremiumBrief(topic)
+      })
+    };
+  }
+
+  private async buyPremiumBrief(topic: string) {
+    const id = this.mcpServerId(PREMIUM_SERVER);
+    const connection = id ? this.mcp.mcpConnections[id] : undefined;
+    if (!connection) return { error: "premium MCP server is not connected" };
+    const c = config(this.env);
+    const payer = withX402Client(connection.client, {
+      network: PAYMENT_NETWORK,
+      account: toClientEvmSigner(privateKeyToAccount(c.x402PrivateKey as `0x${string}`))
+    });
+    let paid: { usd: number } | null = null;
+    const result = await payer.callTool(
+      async (requirements) => {
+        const decision = choosePayment(requirements, c.x402PayTo);
+        this.record({
+          kind: "tool",
+          status: decision.pay ? "ok" : "error",
+          title: decision.pay ? `Payment authorized: $${decision.usd} test USDC (Base Sepolia)` : "Payment refused by policy",
+          detail: decision.pay ? `to ${decision.requirement.payTo}` : decision.reason
+        });
+        if (decision.pay) paid = { usd: decision.usd };
+        return decision.pay;
+      },
+      { name: "premium_brief", arguments: { topic } }
+    );
+    const text = (result.content ?? [])
+      .map((part) => (part.type === "text" ? part.text : ""))
+      .join("\n");
+    return result.isError ? { error: text || "payment or tool call failed" } : { paid, brief: text };
   }
 
   private notesTools(): ToolSet {
@@ -303,12 +364,21 @@ export class LazyDog extends Think<Env, LazyDogState> {
         browser: true,
         sandbox: Boolean(this.env.Sandbox),
         slack: slackConfigured(c),
-        email: Boolean(c.emailFrom)
+        email: Boolean(c.emailFrom),
+        payments: paymentsConfigured(this.env)
       }
     });
     this.reminderRefresh();
     // Connecting may take a moment; turns wait for it via waitForMcpConnections.
     this.ctx.waitUntil(this.connectNotesServer());
+    if (paymentsConfigured(this.env)) {
+      // The paid MCP server lives in this Worker; RPC transport, no network hop.
+      this.ctx.waitUntil(
+        this.addMcpServer(PREMIUM_SERVER, this.env.PremiumMCP as unknown as DurableObjectNamespace<PremiumMCP>).catch((error) =>
+          this.record({ kind: "mcp", status: "error", title: "Premium MCP connection failed", detail: String(error) })
+        )
+      );
+    }
   }
 
   private async connectNotesServer() {

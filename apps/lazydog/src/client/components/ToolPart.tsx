@@ -59,6 +59,11 @@ export function ToolPart({
       {needsApproval && (
         <div className="space-y-2 border-t border-amber-300 px-3 py-2 dark:border-amber-700">
           <p>LazyDog wants to run this action:</p>
+          {name === "buy_premium_brief" && (
+            <p className="font-medium">
+              💳 Payment: $0.01 in TEST USDC on Base Sepolia (testnet, x402). Policy cap $0.05; no real money.
+            </p>
+          )}
           <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-white/70 p-2 dark:bg-black/30">
             {JSON.stringify(part.input, null, 2)}
           </pre>

@@ -28,7 +28,7 @@ the same conversation, memory, notes, reminders and activity log.
 | Activity panel | Think hooks + `agents/observability` events, no synthetic entries | ✅ tested |
 | Recoverability | checkpointed research-job fiber, crash-and-resume demo | ✅ tested (forced abort) |
 | Cross-channel identity | GitHub sign-in + one-time link codes → `IdentityRegistry` | ✅ tested |
-| Payments | x402 / MPP | ⏳ stretch, not implemented |
+| Payments | x402 on Base Sepolia: approval-gated `buy_premium_brief`, policy-checked signing, paid MCP server | ✅ tested end to end against a stub facilitator · live run needs your testnet wallet |
 
 "Needs account" items call real Cloudflare services; they are type-checked and
 wired but must be exercised after `wrangler login` (see [DEPLOY.md](docs/DEPLOY.md)).
@@ -75,7 +75,7 @@ npm test          # both Workers, in the Workers runtime (vitest-pool-workers)
 npm run typecheck
 ```
 
-67 tests: the agent loop with a scripted model through the real Think runtime,
+78 tests: the agent loop with a scripted model through the real Think runtime,
 durable submissions and dedupe, reminders firing from a real alarm, the
 crash-and-resume job, webhook signing/replay/size rules, identity linking and
 its abuse guards, Slack and email routing, auth and routing, and the notes MCP

@@ -5,8 +5,21 @@ import { defineConfig } from "vitest/config";
 // Stub for Slack's Web API: every outbound fetch from the Worker lands here.
 // Tests read what LazyDog posted via GET https://slack-mock.test/__calls.
 const slackCalls: Array<{ method: string; body: unknown }> = [];
+const facilitatorCalls: unknown[] = [];
 async function outbound(request: Request): Promise<Response> {
   const url = new URL(request.url);
+  // x402 facilitator stub: advertises Base Sepolia "exact" (as the real one
+  // does) and rejects every payment at /verify, so nothing can ever settle.
+  if (url.hostname === "x402.org" && url.pathname === "/facilitator/supported") {
+    return Response.json({ kinds: [{ x402Version: 2, scheme: "exact", network: "eip155:84532" }], extensions: [], signers: {} });
+  }
+  if (url.hostname === "x402.org" && url.pathname === "/facilitator/verify") {
+    facilitatorCalls.push(JSON.parse(await request.text()));
+    return Response.json({ isValid: false, invalidReason: "test_facilitator_rejects_all" });
+  }
+  if (url.hostname === "slack-mock.test" && url.pathname === "/__facilitator") {
+    return Response.json(facilitatorCalls.splice(0));
+  }
   // Public test pages for the browser fallback: one redirects to a local address.
   if (url.hostname === "redirect.example.com") {
     return new Response(null, { status: 302, headers: { Location: "http://127.0.0.1:8788/mcp" } });
@@ -53,7 +66,11 @@ export default defineConfig({
           SLACK_BOT_USER_ID: "UBOT",
           DEV_LOGIN: "false",
           EMAIL_FROM: "lazydog@example.com",
-          PUBLIC_URL: "https://lazydog.test"
+          PUBLIC_URL: "https://lazydog.test",
+          // Payments test fixtures. The key is Hardhat's published dev account #0
+          // (no funds, documented publicly); nothing is ever settled in tests.
+          X402_PAY_TO: "0x00000000000000000000000000000000000000A1",
+          X402_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
         }
       }
     })

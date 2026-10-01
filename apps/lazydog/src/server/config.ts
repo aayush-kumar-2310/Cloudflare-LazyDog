@@ -41,6 +41,9 @@ export function config(env: Env) {
       signingSecret: str(env.SLACK_SIGNING_SECRET),
       botUserId: str(env.SLACK_BOT_USER_ID)
     },
+    /** x402 payments (testnet): recipient address (var) and the agent's signing key (secret). */
+    x402PayTo: str((env as { X402_PAY_TO?: unknown }).X402_PAY_TO),
+    x402PrivateKey: str((env as { X402_PRIVATE_KEY?: unknown }).X402_PRIVATE_KEY),
     anthropicApiKey: str(env.ANTHROPIC_API_KEY),
     openaiApiKey: str(env.OPENAI_API_KEY)
   };
@@ -50,3 +53,12 @@ export type AppConfig = ReturnType<typeof config>;
 
 export const slackConfigured = (c: AppConfig) =>
   Boolean(c.slack.botToken && c.slack.signingSecret);
+
+export const paymentsConfigured = (env: Env) => {
+  const c = config(env);
+  return Boolean(
+    /^0x[0-9a-fA-F]{40}$/.test(c.x402PayTo) &&
+      /^0x[0-9a-fA-F]{64}$/.test(c.x402PrivateKey) &&
+      (env as { PremiumMCP?: unknown }).PremiumMCP
+  );
+};
