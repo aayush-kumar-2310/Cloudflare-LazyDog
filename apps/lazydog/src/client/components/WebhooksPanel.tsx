@@ -42,7 +42,7 @@ export function WebhooksPanel() {
           Secret for <code>{created.id}</code> (shown once):
           <code className="mt-1 block font-mono">{created.secret}</code>
           <span className="mt-1 block text-zinc-500">
-            npm run webhook:send -- --url {location.origin}/webhook --source {created.id} --secret …
+            npm run webhook:send -w apps/lazydog -- --url {location.origin}/webhook --source {created.id} --secret …
           </span>
         </div>
       )}
