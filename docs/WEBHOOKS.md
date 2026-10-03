@@ -66,6 +66,8 @@ verification path.
      `notes_list_notes`, `notes_get_note`, `notes_create_note`,
      `schedule_reminder`, `list_reminders` — no code execution, no deletion,
      no memory writes, no outbound messages;
-   * at most 6 model steps.
+   * at most 6 model steps;
+   * `notes_create_note` still needs approval, so a webhook can propose a note
+     but it is only written once you approve it in the web app.
 4. The result appears in the web transcript ("via webhook") and the activity
    log records receipt, tool calls and the response.

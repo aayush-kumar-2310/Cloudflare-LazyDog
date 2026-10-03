@@ -8,7 +8,8 @@ import {
   type UserIdentityStore
 } from "agents/channels";
 import { toHex } from "@lazydog/shared";
-import type { Profile, WebhookSourceSummary } from "../../shared/types";
+import type { Profile, SearchIndexStatus, WebhookSourceSummary } from "../../shared/types";
+import { seedSearchBatch } from "../http/seed-search";
 
 const LINK_CODE_TTL_MS = 10 * 60 * 1000;
 const LINK_ATTEMPT_WINDOW_MS = 10 * 60 * 1000;
@@ -27,6 +28,9 @@ export type RedeemResult =
   | { ok: false; reason: "invalid" | "expired" | "rate-limited" | "already-linked" };
 
 export type WebhookSourceSecret = WebhookSourceSummary & { userId: string; secret: string };
+
+type SeedState = SearchIndexStatus & { instance: string; offset: number };
+const SEED_KEY = "search-seed";
 
 async function sha256Hex(text: string) {
   return toHex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
@@ -242,6 +246,54 @@ export class IdentityRegistry extends DurableObject<Env> {
     return { allowed: true, retryAfterSeconds: 0 };
   }
 
+  // ── AI Search first-run seeding ─────────────────────────────────────────
+
+  /**
+   * Make sure the docs index has content, so a fresh deploy's research example
+   * works without anyone pressing a button. An index that already has items is
+   * left alone. Seeding runs one batch per alarm: each alarm is a fresh
+   * invocation, which keeps every batch inside the free-plan subrequest limit.
+   */
+  async ensureSearchSeeded(instance: string): Promise<SearchIndexStatus> {
+    const state = await this.ctx.storage.get<SeedState>(SEED_KEY);
+    if (state && state.instance === instance && state.status !== "failed") return publicSeed(state);
+
+    let existing = 0;
+    try {
+      const listing = (await this.env.AI_SEARCH.get(instance).items.list({ per_page: 1 })) as {
+        result_info?: { total_count?: number };
+      };
+      existing = listing.result_info?.total_count ?? 0;
+    } catch {
+      existing = 0; // instance missing: the first batch creates it
+    }
+    const next: SeedState = existing > 0
+      ? { instance, offset: 0, status: "ready", uploaded: existing, total: existing }
+      : { instance, offset: 0, status: "seeding", uploaded: 0, total: 0 };
+    await this.ctx.storage.put(SEED_KEY, next);
+    if (next.status === "seeding") await this.ctx.storage.setAlarm(Date.now() + 250);
+    return publicSeed(next);
+  }
+
+  async alarm() {
+    const state = await this.ctx.storage.get<SeedState>(SEED_KEY);
+    if (!state || state.status !== "seeding") return;
+    try {
+      const batch = await seedSearchBatch(this.env.AI_SEARCH, state.instance, state.offset);
+      const next: SeedState = {
+        ...state,
+        offset: batch.nextOffset ?? state.offset,
+        uploaded: state.uploaded + batch.uploaded.length,
+        total: batch.total,
+        status: batch.nextOffset === null ? "ready" : "seeding"
+      };
+      await this.ctx.storage.put(SEED_KEY, next);
+      if (next.status === "seeding") await this.ctx.storage.setAlarm(Date.now() + 1_000);
+    } catch (error) {
+      await this.ctx.storage.put(SEED_KEY, { ...state, status: "failed", error: String((error as Error).message ?? error) });
+    }
+  }
+
   async getWebhookSource(id: string): Promise<WebhookSourceSecret | null> {
     const row = this.ctx.storage.sql
       .exec<{ id: string; user_id: string; name: string; secret: string; created_at: string }>(
@@ -254,3 +306,10 @@ export class IdentityRegistry extends DurableObject<Env> {
       : null;
   }
 }
+
+const publicSeed = ({ status, uploaded, total, error }: SeedState): SearchIndexStatus => ({
+  status,
+  uploaded,
+  total,
+  ...(error ? { error } : {})
+});

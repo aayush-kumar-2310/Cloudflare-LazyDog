@@ -72,8 +72,18 @@ export function ChannelsPanel({
 
       {me.isAdmin && (
         <div className="mt-2 text-[11px]">
+          {me.searchIndex && (
+            <span className="block text-zinc-500">
+              Docs index:{" "}
+              {me.searchIndex.status === "seeding"
+                ? `seeding ${me.searchIndex.uploaded}/${me.searchIndex.total || "…"} pages (automatic)`
+                : me.searchIndex.status === "ready"
+                  ? `ready (${me.searchIndex.uploaded} pages)`
+                  : `seeding failed: ${me.searchIndex.error ?? "unknown error"}`}
+            </span>
+          )}
           <button onClick={seedSearch} className="underline">
-            Seed AI Search with the Cloudflare Agents docs
+            Re-seed AI Search with the Cloudflare Agents docs
           </button>
           {seed && <span className="block text-zinc-500">{seed}</span>}
         </div>

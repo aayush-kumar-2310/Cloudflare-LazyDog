@@ -1,4 +1,4 @@
-import type { Profile, WebhookSourceSummary } from "../shared/types";
+import type { Profile, SearchIndexStatus, WebhookSourceSummary } from "../shared/types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -10,7 +10,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body;
 }
 
-export type Me = { profile: Profile; isAdmin: boolean; channels: { slack: boolean; email: string | null } };
+export type Me = {
+  profile: Profile;
+  isAdmin: boolean;
+  searchIndex: SearchIndexStatus | null;
+  channels: { slack: boolean; email: string | null };
+};
 
 export const api = {
   session: () => request<{ signedIn: boolean; login: string | null }>("/api/session"),

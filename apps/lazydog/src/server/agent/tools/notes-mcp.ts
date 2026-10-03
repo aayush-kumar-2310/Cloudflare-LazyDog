@@ -38,8 +38,9 @@ export function unwrapMcpResult(result: unknown): unknown {
  * Expose one MCP server's tools to the model as `notes_<tool>`.
  *
  * Tools come from live MCP discovery, not a hard-coded list, and every call
- * goes through the MCP client connection. Tools the server marks
- * `destructiveHint` (delete_note) require human approval before they run.
+ * goes through the MCP client connection. Anything the server does not mark
+ * `readOnlyHint` (create_note, delete_note) changes the user's data, so it
+ * requires human approval before it runs; reads (list/get) do not.
  */
 export function createMcpServerTools(mcp: McpToolSource, serverId: string): ToolSet {
   const tools: ToolSet = {};
@@ -48,7 +49,7 @@ export function createMcpServerTools(mcp: McpToolSource, serverId: string): Tool
     tools[`${NOTES_TOOL_PREFIX}${t.name}`] = tool({
       description: `[MCP notes server] ${t.description ?? t.name}`,
       inputSchema: jsonSchema(t.inputSchema as JSONSchema7),
-      needsApproval: t.annotations?.destructiveHint === true,
+      needsApproval: t.annotations?.readOnlyHint !== true,
       execute: async (args) =>
         unwrapMcpResult(
           await mcp.callTool({

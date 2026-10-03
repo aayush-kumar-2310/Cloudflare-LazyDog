@@ -4,15 +4,26 @@ import { inAgent, stateOf, waitFor } from "./helpers";
 const uid = () => `usr_${crypto.randomUUID().replace(/-/g, "")}`;
 
 describe("durable research job", () => {
-  it("runs all steps and saves the result", async () => {
+  it("runs all steps — search, browser read, summary — and saves the result as an MCP note", async () => {
     const userId = uid();
-    await inAgent(userId, (a) => a.startResearchJob("durable execution"));
+    await inAgent(userId, (a) => a.startResearchJob("durable execution fibers"));
     const job = await waitFor(async () => (await stateOf(userId)).jobs.find((j) => j.status === "completed"));
     expect(job.completed).toEqual(["search", "read", "summarize", "save"]);
     expect(job.resumes).toBe(0);
 
-    const files = await inAgent(userId, (a) => a.workspace.glob("/research/*.md"));
-    expect(files).toHaveLength(1);
+    const steps = (await stateOf(userId)).activity.filter((e) => e.title.startsWith("Job step:"));
+    expect(steps.map((e) => `${e.title}:${e.status}`)).toEqual([
+      "Job step: search:ok",
+      "Job step: read:ok",
+      "Job step: summarize:ok",
+      "Job step: save:ok"
+    ]);
+    // The note really exists in the Notes MCP server (D1), read back over MCP.
+    const notes = await inAgent(userId, async (a) => {
+      const id = Object.entries(a.getMcpServers().servers).find(([, s]) => s.name === "notes")![0];
+      return a.mcp.callTool({ serverId: id, name: "list_notes", arguments: {} });
+    });
+    expect(JSON.stringify(notes)).toContain("Research: durable execution fibers");
   });
 
   it("survives a crash mid-job and resumes from the last checkpoint", async () => {

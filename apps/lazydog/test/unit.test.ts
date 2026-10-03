@@ -52,18 +52,20 @@ describe("activity log", () => {
 describe("MCP tool wrapping", () => {
   const source = {
     listTools: () => [
-      { serverId: "notes", name: "create_note", inputSchema: { type: "object" }, annotations: {} },
+      { serverId: "notes", name: "create_note", inputSchema: { type: "object" }, annotations: { destructiveHint: false } },
+      { serverId: "notes", name: "list_notes", inputSchema: { type: "object" }, annotations: { readOnlyHint: true } },
       { serverId: "notes", name: "delete_note", inputSchema: { type: "object" }, annotations: { destructiveHint: true } },
       { serverId: "other", name: "ignored", inputSchema: { type: "object" } }
     ],
     callTool: async (p: { name: string }) => ({ content: [{ type: "text", text: JSON.stringify({ called: p.name }) }] })
   };
 
-  it("exposes one server's tools, and gates destructive ones behind approval", async () => {
+  it("exposes one server's tools, and gates every write behind approval", async () => {
     const tools = createMcpServerTools(source, "notes");
-    expect(Object.keys(tools).sort()).toEqual(["notes_create_note", "notes_delete_note"]);
+    expect(Object.keys(tools).sort()).toEqual(["notes_create_note", "notes_delete_note", "notes_list_notes"]);
     expect(tools.notes_delete_note.needsApproval).toBe(true);
-    expect(tools.notes_create_note.needsApproval).toBe(false);
+    expect(tools.notes_create_note.needsApproval).toBe(true);
+    expect(tools.notes_list_notes.needsApproval).toBe(false);
     const out = await tools.notes_create_note.execute!({}, { toolCallId: "t", messages: [] } as never);
     expect(out).toEqual({ called: "create_note" });
   });

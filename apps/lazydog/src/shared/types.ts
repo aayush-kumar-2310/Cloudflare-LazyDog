@@ -95,3 +95,11 @@ export type WebhookEvent = {
   source: string;
   payload: unknown;
 };
+
+/** The docs index behind ai_search; seeded automatically on first admin visit. */
+export type SearchIndexStatus = {
+  status: "seeding" | "ready" | "failed";
+  uploaded: number;
+  total: number;
+  error?: string;
+};

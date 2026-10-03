@@ -1,16 +1,31 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "jsx": "react-jsx",
     "module": "ES2022",
     "moduleResolution": "bundler",
-    "types": ["./worker-configuration.d.ts", "vite/client", "@cloudflare/vitest-pool-workers/types"],
+    "types": [
+      "./worker-configuration.d.ts",
+      "vite/client",
+      "@cloudflare/vitest-pool-workers/types"
+    ],
     "noEmit": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["src", "test", "worker-configuration.d.ts"]
+  "include": [
+    "src",
+    "test",
+    "worker-configuration.d.ts"
+  ],
+  "exclude": [
+    "test/fixtures"
+  ]
 }

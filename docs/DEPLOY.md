@@ -24,11 +24,12 @@ Note the URL it prints, e.g. `https://lazydog-notes-mcp.<subdomain>.workers.dev`
 
 ## 2. AI Search
 
-Nothing to do now. AI Search crawls only websites you own, so LazyDog indexes
-uploaded copies of the Cloudflare Agents docs instead: the admin **Seed AI
-Search** action (step 5) creates the `lazydog-docs` instance through the
-Worker's binding if it doesn't exist, with the `title` and `url` metadata
-fields used for citations, then uploads the pages. (Creating it with
+Nothing to do. AI Search crawls only websites you own, so LazyDog indexes
+uploaded copies of the Cloudflare Agents docs instead. The first time an
+admin opens the app, LazyDog checks the `lazydog-docs` index; if it is
+missing or empty, it creates it (with the `title` and `url` metadata fields
+used for citations) and uploads the docs in the background, one batch per
+Durable Object alarm. An index that already has content is left alone. (Creating it with
 `wrangler ai-search create` instead requires an AI Search service token.)
 
 ## 3. GitHub OAuth app
@@ -67,9 +68,8 @@ npm run deploy                                  # vite build && wrangler deploy
 ## 5. First run
 
 1. Open the app and sign in with GitHub.
-2. In **Identity & channels**, click **Seed AI Search with the Cloudflare
-   Agents docs** (admins only). It uploads ~110 pages in batches of 20.
-   Indexing continues in the background; search returns results while it runs.
+2. **Identity & channels** shows the docs index status ("seeding 40/110…",
+   then "ready"). Seeding starts on its own; **Re-seed** is there if needed.
 3. Try: *"Explain Cloudflare durable execution."* — it should call
    `ai_search`, then answer with source links.
 

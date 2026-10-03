@@ -60,7 +60,7 @@ Versions: `agents@0.24`, `@cloudflare/think@0.19`, `ai@7`, Wrangler 4.
 | `browser_open`, `browser_links` | Browser Run Quick Actions (`agents/browser`) | read-only; public http(s) only; paced, with a labelled direct-fetch fallback (below) |
 | `run_python` | `@cloudflare/sandbox` container | only when the Sandbox binding exists (`--env paid`) |
 | `bash` + file tools | Think workspace (in-isolate, no network) | free-plan code execution fallback |
-| `notes_*` | MCP client → notes Worker | `notes_delete_note` requires approval (server marks it `destructiveHint`) |
+| `notes_*` | MCP client → notes Worker | every write (`create_note`, `delete_note`) requires approval; reads (`list`, `get`, marked `readOnlyHint`) don't |
 | `schedule_reminder`, `list_reminders`, `cancel_reminder` | Agent `schedule()` (DO alarms) | validated: explicit UTC offset, future, ≤1 year |
 | `start_research_job` | managed fiber | durable background job (below) |
 | `buy_premium_brief` | x402 client → paid MCP server | **always** needs approval; testnet-only payment policy (below) |
@@ -141,8 +141,9 @@ deprecated `McpAgent` server path, not `createMcpHandler`.
   server derives the user only from a token it can verify. Tokens don't
   expire; rotating `NOTES_MCP_SECRET` (on both Workers) revokes all of them.
 * Bookkeeping tables (`ld_inbound`, `ld_deliveries`) keep 30 days.
-* Side-effecting tools: destructive MCP tools need approval; code runs only in
-  a container (paid) or the network-less workspace bash.
+* Side-effecting tools: every MCP write and every payment needs approval;
+  code runs only in a container (paid) or the network-less workspace bash.
+  Reminders are not gated (they only notify the user themselves).
 
 ## Tradeoffs
 

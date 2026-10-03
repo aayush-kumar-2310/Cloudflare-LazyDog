@@ -10,6 +10,9 @@ import type {
  * It exercises the real agent plumbing (tool execution, approvals, channel
  * delivery, persistence) without judging model quality:
  *   - `/tool <name> <json>`  → calls that tool with that input
+ *   - `/script [{"tool","input"},…]` → calls the steps in order, one per
+ *     model step (step n runs after n tool results have come back), then
+ *     reports the results — a deterministic multi-tool agent turn
  *   - after tool results     → reports each result as text
  *   - anything else          → `echo: <text>`
  *
@@ -21,7 +24,35 @@ export function createMockModel(): LanguageModelV4 {
     outputTokens: { total: 1, text: 1, reasoning: 0 }
   };
 
+  const toolCall = (toolName: string, input: unknown): LanguageModelV4StreamPart[] => [
+    { type: "stream-start", warnings: [] },
+    {
+      type: "tool-call",
+      toolCallId: `call_${crypto.randomUUID().slice(0, 8)}`,
+      toolName,
+      input: typeof input === "string" ? input : JSON.stringify(input ?? {})
+    },
+    { type: "finish", usage, finishReason: { unified: "tool-calls", raw: "tool_calls" } }
+  ];
+
   const plan = (options: LanguageModelV4CallOptions): LanguageModelV4StreamPart[] => {
+    const lastUserIndex = options.prompt.map((m) => m.role).lastIndexOf("user");
+    const userText =
+      lastUserIndex >= 0 && options.prompt[lastUserIndex].role === "user"
+        ? (options.prompt[lastUserIndex].content as Array<{ type: string; text?: string }>)
+            .filter((p) => p.type === "text")
+            .map((p) => p.text ?? "")
+            .join("")
+            .trim()
+        : "";
+    const script = /^\/script\s+(\[[\s\S]*\])$/.exec(userText);
+    if (script) {
+      const steps = JSON.parse(script[1]) as Array<{ tool: string; input?: unknown }>;
+      const done = options.prompt
+        .slice(lastUserIndex + 1)
+        .flatMap((m) => (m.role === "tool" ? m.content.filter((p) => p.type === "tool-result") : [])).length;
+      if (done < steps.length) return toolCall(steps[done].tool, steps[done].input);
+    }
     const last = options.prompt[options.prompt.length - 1];
     if (last?.role === "tool") {
       const summary = last.content
@@ -38,18 +69,7 @@ export function createMockModel(): LanguageModelV4 {
             .join("")
         : "";
     const command = /^\/tool\s+(\w+)\s*([\s\S]*)$/.exec(text.trim());
-    if (command) {
-      return [
-        { type: "stream-start", warnings: [] },
-        {
-          type: "tool-call",
-          toolCallId: `call_${crypto.randomUUID().slice(0, 8)}`,
-          toolName: command[1],
-          input: command[2].trim() || "{}"
-        },
-        { type: "finish", usage, finishReason: { unified: "tool-calls", raw: "tool_calls" } }
-      ];
-    }
+    if (command) return toolCall(command[1], command[2].trim() || "{}");
     return textParts(`echo: ${text}`, "stop");
   };
 

@@ -15,7 +15,7 @@ the same conversation, memory, notes, reminders and activity log.
 | Durable agent, state, history | `Think` + Session in DO SQLite, synced state via `useAgent` | ✅ tested |
 | Streaming web chat | `useAgentChat` over the agent WebSocket | ✅ tested in browser |
 | Configurable model | Workers AI Qwen 3.8 27B (default, benchmarked), Anthropic or OpenAI via `MODEL_PROVIDER` | ✅ tested on real Workers AI |
-| AI Search research with sources | `ai_search` tool on an `ai_search_namespaces` binding; admin seeding creates + fills the instance | ✅ instance created and searched on real AI Search |
+| AI Search research with sources | `ai_search` tool on an `ai_search_namespaces` binding; the docs index is created and seeded automatically on first admin visit | ✅ verified on real Workers AI + AI Search; research → read → save-note turn in CI |
 | Browser | `browser_open` / `browser_links` (Browser Run Quick Actions, paced, fetch fallback) | ✅ tested on real Browser Run |
 | Code execution | `run_python` in Cloudflare Sandbox *(paid)*; workspace `bash` on free | ✅ wired |
 | MCP | separate Notes MCP Worker (`createMcpHandler`, D1); agent is an MCP client | ✅ tested end to end |
@@ -24,7 +24,7 @@ the same conversation, memory, notes, reminders and activity log.
 | Slack | `agents/channels` Slack adapter, code-based identity linking | ✅ tested (stubbed Slack API) |
 | Email | `agents/channels` email adapter, DKIM/DMARC required, replies | ✅ verified manually (local email simulation) |
 | Voice | push-to-talk (gated mic), `withVoice` bridge → turns on the user's LazyDog | ✅ tested on real Flux STT + Aura TTS (synthesized speech) |
-| Human approval | `needsApproval` on destructive MCP tools; approve in the web UI | ✅ tested in browser |
+| Human approval | `needsApproval` on every MCP write (`create_note`, `delete_note`) and on payments; approve in the web UI | ✅ tested in CI (approval over the agent WebSocket) and in the browser |
 | Activity panel | Think hooks + `agents/observability` events, no synthetic entries | ✅ tested |
 | Recoverability | checkpointed research-job fiber, crash-and-resume demo | ✅ tested (forced abort) |
 | Cross-channel identity | GitHub sign-in + one-time link codes → `IdentityRegistry` | ✅ tested |
@@ -75,7 +75,7 @@ npm test          # both Workers, in the Workers runtime (vitest-pool-workers)
 npm run typecheck
 ```
 
-78 tests: the agent loop with a scripted model through the real Think runtime,
+81 tests: a scripted multi-tool turn (search → read → approval → note saved through the real Notes MCP Worker) and the agent loop through the real Think runtime,
 durable submissions and dedupe, reminders firing from a real alarm, the
 crash-and-resume job, webhook signing/replay/size rules, identity linking and
 its abuse guards, Slack and email routing, auth and routing, and the notes MCP

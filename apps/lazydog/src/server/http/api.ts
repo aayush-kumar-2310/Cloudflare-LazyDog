@@ -5,6 +5,7 @@ import { handleWebhook, signWebhook, WEBHOOK_HEADERS } from "../channels/webhook
 import { config, slackConfigured } from "../config";
 import { registry } from "../identity/client";
 import { seedSearchBatch } from "./seed-search";
+import type { SearchIndexStatus } from "../../shared/types";
 
 const createSourceSchema = z.object({ name: z.string().trim().min(1).max(80) });
 
@@ -48,9 +49,21 @@ export async function handleApi(request: Request, env: Env, session: Session): P
   if (path === "/me" && method === "GET") {
     const c = config(env);
     const profile = await reg.getProfile(session.uid);
+    const admin = isAdmin(request, env, session);
+    // First admin visit on a fresh deploy starts seeding the docs index.
+    let searchIndex: SearchIndexStatus | null = null;
+    if (admin && c.aiSearchInstance) {
+      searchIndex = await reg.ensureSearchSeeded(c.aiSearchInstance).catch((error: Error) => ({
+        status: "failed" as const,
+        uploaded: 0,
+        total: 0,
+        error: error.message
+      }));
+    }
     return Response.json({
       profile,
-      isAdmin: isAdmin(request, env, session),
+      isAdmin: admin,
+      searchIndex,
       channels: {
         slack: slackConfigured(c),
         email: c.emailFrom || null
