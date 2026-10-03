@@ -192,14 +192,25 @@ and voice (Flux STT → LazyDog turn → Aura TTS) using synthesized speech.
 
 ## Not done / known gaps
 
-* Payments are x402 on **testnet** only (Base Sepolia test USDC); MPP and
-  mainnet are deliberately not wired.
+* **`run_python` is paid-only.** Sandbox (Containers) and Dynamic Workers both
+  need Workers Paid, and an in-isolate Python (Pyodide) doesn't fit the free
+  3 MB bundle. On the free plan the agent has Think's network-less workspace
+  `bash` instead.
+* **AI Search is a docs index, not web search.** AI Search crawls only sites
+  you own, so `lazydog-docs` holds uploaded copies of the Cloudflare Agents
+  docs; research beyond that goes through `browser_open` on a URL the model
+  already knows. The index is created and filled automatically, but only when
+  an admin first opens the app — not at deploy time.
+* **Email and voice are not in CI.** Email routing and reply were verified with
+  Wrangler's local email simulation; voice with synthesized speech over the
+  real WebSocket protocol on real Workers AI. Neither has an automated test,
+  and voice hasn't been tried with a person on a microphone.
+* **Approvals happen only in the web app.** A Slack or email turn that needs
+  approval replies "approval pending — open the web app"; there are no Slack
+  buttons or email approve links yet.
+* **Payments are a stretch extra**: x402 on testnet only (Base Sepolia test
+  USDC), off unless a wallet is configured. MPP and mainnet are deliberately
+  not wired.
 * No unlink for channel identities (no API in `agents@0.24`).
-* Slack approval buttons: approvals happen in the web UI; Slack/email get a
-  message saying approval is pending.
-* AI Search is wired and tested in isolation but the `lazydog-docs` instance
-  must be created on the account before the research path returns results.
-* Voice was verified with synthesized speech over the real WebSocket protocol,
-  not yet with a person holding a microphone in a browser.
 * Model quality is limited to Workers Free models; the agent occasionally
   embellishes beyond what a page says.
