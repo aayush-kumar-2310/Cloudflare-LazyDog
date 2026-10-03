@@ -31,10 +31,11 @@ Versions: `agents@0.24`, `@cloudflare/think@0.19`, `ai@7`, Wrangler 4.
 | `VoiceBridge` | `withVoice(Agent)` | Audio in/out only. Each finished utterance becomes a `voice` turn on the user's LazyDog, so voice shares history and tools. |
 | `ChannelHost` | `agents/channels` with the Slack and email adapters | Verifies provider signatures, normalises events, routes by linked user, delivers replies (Slack messages, email replies). |
 | `lazydog-notes-mcp` | Separate Worker, `createMcpHandler` (MCP SDK v2), D1 | A real MCP server with `create_note`, `list_notes`, `get_note`, `delete_note`; usable by other MCP clients too. |
+| `PremiumMCP` *(stretch)* | `McpAgent` + `withX402` in the lazydog Worker | The paid MCP server for the payments demo; reached over the Agents RPC transport. Inert unless a testnet wallet is configured. |
 
 ## A turn, end to end
 
-1. **Entry.** Web chat speaks the `cf_agent_chat_*` WebSocket protocol through
+1. **Entry.** Web chat speaks the `cf_agent_use_chat_*` WebSocket protocol through
    `useAgentChat`. Other channels call RPC entry points on the agent:
    `receiveInbound` (Slack/email), `receiveWebhook`, `voiceTurn`.
 2. **Admission.** Slack, email and webhooks use `runTurn({ mode: "submit" })`
@@ -80,12 +81,13 @@ Versions: `agents@0.24`, `@cloudflare/think@0.19`, `ai@7`, Wrangler 4.
    Sepolia only, Circle test USDC only, our configured recipient only, at most
    $0.05. Anything else is refused and logged.
 4. The client signs an EIP-3009 authorization with the agent's testnet key;
-   the server verifies and settles it through the public x402 facilitator and
-   returns the brief. Every decision lands in the activity log.
+   the server sends it to the public x402 facilitator to verify and settle,
+   then returns the brief. Every decision lands in the activity log.
 
 Off unless `X402_PAY_TO` and the `X402_PRIVATE_KEY` secret are both set.
-Tests run the whole flow against a stub facilitator that rejects every
-payment, so nothing can settle. Tradeoff: `withX402` currently supports the
+Tests run the whole flow up to the facilitator against a stub that rejects
+every payment, so nothing can settle; no live testnet payment has been made
+yet. Tradeoff: `withX402` currently supports the
 deprecated `McpAgent` server path, not `createMcpHandler`.
 
 ## Durability
@@ -185,10 +187,16 @@ account (`scripts/chat.mjs` drives the chat protocol from a terminal):
 | Voice: the client **stops sending audio when muted**; Flux STT then drops after ~5 s, which ends the call and **cuts off reply playback**. | Push-to-talk gate implemented as a custom `audioInput` that sends silence between presses, so the session stays alive. |
 | gpt-oss emits markdown even on the voice channel. | `beforeSynthesize` strips markdown before TTS. |
 
-Verified end to end on real services: streaming chat, browser research,
-MCP note create/list, reminder parsing ("tomorrow at 10 AM" → exact UTC
-time), durable job crash/resume, Think chat recovery of an interrupted turn,
-and voice (Flux STT → LazyDog turn → Aura TTS) using synthesized speech.
+Verified end to end on real services: streaming chat; research with sources
+("Explain Cloudflare durable execution" → `ai_search` ×2 → `browser_open` ×2
+→ answer citing four docs pages, ~114 s with Qwen 27B); MCP note create/list;
+reminder parsing ("tomorrow at 10 AM" → exact UTC time); durable job
+crash/resume; Think chat recovery of an interrupted turn; and voice (Flux STT
+→ LazyDog turn → Aura TTS) using synthesized speech.
+
+Also observed: the Free-plan model quota did not come back at 00:00 UTC —
+calls were still refused with 4006 for at least 1.5 hours after midnight while
+the dashboard showed 0 used.
 
 ## Not done / known gaps
 
@@ -201,16 +209,24 @@ and voice (Flux STT → LazyDog turn → Aura TTS) using synthesized speech.
   docs; research beyond that goes through `browser_open` on a URL the model
   already knows. The index is created and filled automatically, but only when
   an admin first opens the app — not at deploy time.
-* **Email and voice are not in CI.** Email routing and reply were verified with
-  Wrangler's local email simulation; voice with synthesized speech over the
-  real WebSocket protocol on real Workers AI. Neither has an automated test,
-  and voice hasn't been tried with a person on a microphone.
+* **Inbound email and voice are not in CI.** Email reply *delivery* (agent →
+  `send_email`) is tested; inbound parsing, DKIM checks and link-code
+  redemption by email were verified only with Wrangler's local email
+  simulation, and never on a real domain. Voice was verified with synthesized
+  speech over the real WebSocket protocol on real Workers AI; it has no
+  automated test and hasn't been tried with a person on a microphone.
+* **Slack has not run against a real workspace.** Ingress, linking and replies
+  are tested against a stubbed Slack Web API only.
 * **Approvals happen only in the web app.** A Slack or email turn that needs
-  approval replies "approval pending — open the web app"; there are no Slack
-  buttons or email approve links yet.
+  approval replies "I need your approval… open the LazyDog web app"; there are
+  no Slack buttons or email approve links yet. A webhook turn that wants to
+  save a note likewise waits for approval in the web app.
 * **Payments are a stretch extra**: x402 on testnet only (Base Sepolia test
-  USDC), off unless a wallet is configured. MPP and mainnet are deliberately
-  not wired.
+  USDC), off unless a wallet is configured, and never run live. MPP and
+  mainnet are deliberately not wired.
+* **The checked-in config is this deployment's.** `wrangler.jsonc` contains the
+  owner's workers.dev URLs, GitHub login and D1 id; a fork must replace them
+  (DEPLOY.md lists each).
 * No unlink for channel identities (no API in `agents@0.24`).
 * Model quality is limited to Workers Free models; the agent occasionally
   embellishes beyond what a page says.

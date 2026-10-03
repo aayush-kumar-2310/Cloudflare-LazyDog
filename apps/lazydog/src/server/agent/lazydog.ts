@@ -175,7 +175,7 @@ export class LazyDog extends Think<Env, LazyDogState> {
     capabilities: { aiSearch: false, browser: false, sandbox: false, slack: false, email: false, payments: false }
   };
 
-  // MCP tools are wrapped explicitly (notes_*) so destructive ones need approval.
+  // MCP tools are wrapped explicitly (notes_*) so every write needs approval.
   includeMcpTools = false;
   waitForMcpConnections = { timeout: 5_000 };
   maxSteps = 12;

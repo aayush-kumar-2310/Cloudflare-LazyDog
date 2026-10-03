@@ -34,9 +34,11 @@ X-LazyDog-Signature: sha256=<hex>
 Binding the source id and timestamp into the signed bytes means a signature
 can't be replayed for another source, another body, or after 5 minutes.
 
-Responses: `202 {accepted, submissionId, status, eventId}`; `401` bad/missing
-signature, unknown source, or stale timestamp (identical for all three, so
-source ids can't be probed); `400` invalid JSON/schema; `413` body over 64 KB;
+Responses: `202 {accepted, submissionId, status, eventId}`; `401` for missing
+or malformed headers, a timestamp outside the 5-minute window, an unknown
+source, or a bad signature (unknown source and bad signature return the
+identical response, and the timestamp is checked before any lookup, so source
+ids can't be probed); `400` invalid JSON/schema; `413` body over 64 KB;
 `429` (with `Retry-After`) beyond 60 authenticated events per source per hour —
 each event costs a model turn.
 

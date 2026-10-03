@@ -63,11 +63,14 @@
     "X402_PAY_TO": ""
   },
   // Secrets (wrangler secret put / .dev.vars): SESSION_SECRET, GITHUB_CLIENT_ID,
-  // GITHUB_CLIENT_SECRET, NOTES_MCP_SECRET, SLACK_BOT_TOKEN, SLACK_SIGNING_SECRET,
-  // SLACK_BOT_USER_ID, ANTHROPIC_API_KEY, OPENAI_API_KEY (optional per provider).
+  // GITHUB_CLIENT_SECRET, NOTES_MCP_SECRET; optional: SLACK_BOT_TOKEN,
+  // SLACK_SIGNING_SECRET, SLACK_BOT_USER_ID, ANTHROPIC_API_KEY, OPENAI_API_KEY,
+  // X402_PRIVATE_KEY (payments demo). Values in this file are this repo's own
+  // deployment; see docs/DEPLOY.md to deploy your own.
 
   "env": {
-    // `wrangler deploy --env paid` — adds Sandbox (Containers), which needs Workers Paid.
+    // `npm run deploy:paid` (CLOUDFLARE_ENV=paid vite build) — adds Sandbox
+    // (Containers), which needs Workers Paid. Not yet deployed.
     // Bindings below are not inherited, so the full set is repeated.
     "paid": {
       "ai": { "binding": "AI" },
@@ -102,8 +105,8 @@
         "AI_SEARCH_INSTANCE": "lazydog-docs",
         "NOTES_MCP_URL": "https://lazydog-notes-mcp.kumar-aayush2310.workers.dev/mcp",
         // Needs a domain on Cloudflare with Email Routing (docs/DEPLOY.md); empty disables email.
-    "EMAIL_FROM": "",
-    "PUBLIC_URL": "https://lazydog-paid.kumar-aayush2310.workers.dev",
+        "EMAIL_FROM": "",
+        "PUBLIC_URL": "https://lazydog-paid.kumar-aayush2310.workers.dev",
         "ALLOWED_GITHUB_LOGINS": "aayush-kumar-2310",
         "OPEN_SIGNUP": "false",
         "DEFAULT_TIMEZONE": "UTC",

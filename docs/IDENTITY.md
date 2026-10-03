@@ -101,6 +101,7 @@ is posted back to the Slack DM it came from.
 * **Shared context is a feature and a risk.** Because Slack, email and web are
   one conversation, anything said on one channel is visible to the model on
   the others. Webhook content is fenced as untrusted data and cannot reach
-  code execution, deletion, or memory writes.
+  code execution, deletion, or memory writes; a note it proposes is only saved
+  after you approve it in the web app.
 * **Sessions are stateless cookies** (7 days). Revoking one before expiry
   would need a server-side session list; rotating `SESSION_SECRET` revokes all.

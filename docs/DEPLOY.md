@@ -4,10 +4,18 @@ Everything below works on the **Workers Free** plan unless marked *(paid)* or
 *(needs a domain)*. Two Workers are deployed: `lazydog-notes-mcp` first, then
 `lazydog`.
 
+The checked-in `wrangler.jsonc` files hold **this repo's own deployment**
+(`kumar-aayush2310.workers.dev` URLs, the `aayush-kumar-2310` GitHub login,
+its D1 database id). To deploy your own copy, replace each of those as the
+steps below describe.
+
 ## 0. Prerequisites
 
 * Node 24+ and `npm install` at the repo root.
 * A Cloudflare account, then: `npx wrangler login`
+* A **workers.dev subdomain** registered on the account (Workers & Pages →
+  Account details → Subdomain). Without it there is no workers.dev URL to
+  deploy to, and remote dev fails with error 10063.
 
 ## 1. Notes MCP server
 
@@ -68,12 +76,15 @@ npm run deploy                                  # vite build && wrangler deploy
 ## 5. First run
 
 1. Open the app and sign in with GitHub.
-2. **Identity & channels** shows the docs index status ("seeding 40/110…",
+2. **Identity & channels** shows the docs index status ("seeding 40/109…",
    then "ready"). Seeding starts on its own; **Re-seed** is there if needed.
 3. Try: *"Explain Cloudflare durable execution."* — it should call
    `ai_search`, then answer with source links.
 
 ## 6. Slack (optional, free)
+
+*Tested only against a stubbed Slack API so far; these steps follow Slack's
+standard Events API setup.*
 
 1. <https://api.slack.com/apps> → **Create New App** (from scratch).
 2. **OAuth & Permissions** → bot scopes: `chat:write`, `im:history`,
@@ -95,6 +106,8 @@ npm run deploy                                  # vite build && wrangler deploy
 
 ## 7. Email (optional, needs a domain on Cloudflare)
 
+*Verified only with Wrangler's local email simulation; not yet on a real domain.*
+
 1. Dashboard → your domain → **Email Routing**: enable it and add a custom
    address, e.g. `lazydog@yourdomain.com`, with action **Send to a Worker →
    lazydog**.
@@ -107,7 +120,8 @@ Mail must pass DKIM or DMARC to be accepted (see IDENTITY.md).
 
 ## 8. Sandbox / `run_python` *(paid)*
 
-Requires Workers Paid and Docker (to build the container image).
+Requires Workers Paid and Docker (to build the container image). *Not yet
+deployed or run* — this repo's account is on the free plan.
 
 ```bash
 cd apps/lazydog
@@ -115,11 +129,14 @@ npm run deploy:paid      # builds with CLOUDFLARE_ENV=paid: adds the Sandbox con
 ```
 
 The paid environment deploys as a separate Worker (`lazydog-paid`) with its
-own secrets — repeat the `secret put` commands with `--env paid`.
+own secrets — repeat the `secret put` commands with `--env paid` — and its own
+URL, so it needs its own GitHub OAuth app (callback
+`https://lazydog-paid.<subdomain>.workers.dev/auth/callback`).
 
 ## Payments demo (optional, testnet, no real money)
 
-LazyDog can pay for a "premium brief" with x402 on Base Sepolia. You need two
+*Stretch feature, off by default, not yet run live.* LazyDog can pay for a
+"premium brief" with x402 on Base Sepolia. You need two
 testnet wallets (or one, paying itself) — do this yourself; never reuse a key
 that holds real funds:
 
@@ -154,16 +171,24 @@ me tomorrow at 10 AM", recall notes and reminders):
 
 Workers Free includes **10,000 Neurons per day**. An agent turn sends ~20 tool
 schemas plus history, so expect a few dozen turns per day; after that every
-turn fails with error 4006 (shown to the user as a plain message) until 00:00
-UTC. For more, use Workers Paid or `MODEL_PROVIDER=anthropic|openai`.
+turn fails with error 4006 (shown to the user as a plain message). The
+allowance nominally resets at 00:00 UTC, but in practice calls were still
+refused for at least 1.5 hours after midnight while the dashboard showed 0
+used, so don't schedule a demo right after the reset. For more, use Workers Paid or `MODEL_PROVIDER=anthropic|openai`.
 
 ## Local development
 
 ```bash
+cp apps/lazydog/.dev.vars.example apps/lazydog/.dev.vars       # once
+cp apps/notes-mcp/.dev.vars.example apps/notes-mcp/.dev.vars   # once
 npm run dev:notes                       # notes MCP on :8788 (local D1)
-npm run dev                             # LazyDog on :5173 — needs `wrangler login`
+npm run dev                             # LazyDog on :5173 — needs `wrangler login` + a workers.dev subdomain
 npm run dev:offline -w apps/lazydog     # no login: scripted mock model, no remote bindings
 ```
+
+`scripts/chat.mjs` talks to a running dev server from a terminal
+(`node scripts/chat.mjs --login demo "your question"`), printing tool calls
+and the streamed answer.
 
 With `DEV_LOGIN=true` in `apps/lazydog/.dev.vars`, sign in locally at
 `/auth/dev?login=<name>`. Simulate inbound email:

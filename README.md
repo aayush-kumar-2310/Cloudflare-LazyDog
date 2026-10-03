@@ -15,56 +15,67 @@ the same conversation, memory, notes, reminders and activity log.
 | Durable agent, state, history | `Think` + Session in DO SQLite, synced state via `useAgent` | ✅ tested |
 | Streaming web chat | `useAgentChat` over the agent WebSocket | ✅ tested in browser |
 | Configurable model | Workers AI Qwen 3.8 27B (default, benchmarked), Anthropic or OpenAI via `MODEL_PROVIDER` | ✅ tested on real Workers AI |
-| AI Search research with sources | `ai_search` tool on an `ai_search_namespaces` binding; the docs index is created and seeded automatically on first admin visit | ✅ verified on real Workers AI + AI Search; research → read → save-note turn in CI |
+| AI Search research with sources | `ai_search` over a **Cloudflare Agents docs index** (not web search); the index is created and seeded automatically on the first admin visit | ✅ verified on real Workers AI + AI Search; research → read → save-note turn in CI |
 | Browser | `browser_open` / `browser_links` (Browser Run Quick Actions, paced, fetch fallback) | ✅ tested on real Browser Run |
-| Code execution | `run_python` in Cloudflare Sandbox *(paid)*; workspace `bash` on free | ✅ wired |
+| Code execution | `run_python` in Cloudflare Sandbox *(Workers Paid only)*; Think's workspace `bash` on free | ⚠️ `run_python` written and type-checked but never run (no paid plan); `bash` is the free path |
 | MCP | separate Notes MCP Worker (`createMcpHandler`, D1); agent is an MCP client | ✅ tested end to end |
 | Scheduled tasks | `schedule_reminder` → Agent schedules (DO alarms) | ✅ tested (real alarm) |
 | Webhooks | `POST /webhook`, per-source HMAC, idempotent durable turns, restricted tools | ✅ tested |
-| Slack | `agents/channels` Slack adapter, code-based identity linking | ✅ tested (stubbed Slack API) |
-| Email | `agents/channels` email adapter, DKIM/DMARC required, replies | ✅ verified manually (local email simulation) |
-| Voice | push-to-talk (gated mic), `withVoice` bridge → turns on the user's LazyDog | ✅ tested on real Flux STT + Aura TTS (synthesized speech) |
-| Human approval | `needsApproval` on every MCP write (`create_note`, `delete_note`) and on payments; approve in the web UI | ✅ tested in CI (approval over the agent WebSocket) and in the browser |
+| Slack | `agents/channels` Slack adapter, code-based identity linking | ✅ in CI against a stubbed Slack API; not yet run against a real workspace |
+| Email | `agents/channels` email adapter, DKIM/DMARC required, replies | ⚠️ inbound parsing + linking verified manually (local simulation); reply delivery in CI; never run on a real domain |
+| Voice | push-to-talk (gated mic), `withVoice` bridge → turns on the user's LazyDog | ⚠️ verified on real Flux STT + Aura TTS with synthesized speech; not in CI; not tried on a live microphone |
+| Human approval | `needsApproval` on every MCP write (`create_note`, `delete_note`) and on payments; approved **in the web app only** (Slack/email get a "pending" note) | ✅ in CI (approval over the agent WebSocket) and in the browser |
 | Activity panel | Think hooks + `agents/observability` events, no synthetic entries | ✅ tested |
 | Recoverability | checkpointed research-job fiber, crash-and-resume demo | ✅ tested (forced abort) |
 | Cross-channel identity | GitHub sign-in + one-time link codes → `IdentityRegistry` | ✅ tested |
-| Payments | x402 on Base Sepolia: approval-gated `buy_premium_brief`, policy-checked signing, paid MCP server | ✅ tested end to end against a stub facilitator · live run needs your testnet wallet |
+| Payments *(stretch, off by default)* | x402 on Base Sepolia: approval-gated `buy_premium_brief`, policy-checked signing, paid MCP server | ⚠️ in CI against a stub facilitator; never run live (needs a testnet wallet) |
 
-"Needs account" items call real Cloudflare services; they are type-checked and
-wired but must be exercised after `wrangler login` (see [DEPLOY.md](docs/DEPLOY.md)).
+✅ = covered by tests and/or verified against real Cloudflare services.
+⚠️ = works as described but with the limits stated. The full list of gaps is in
+[ARCHITECTURE.md → Not done / known gaps](docs/ARCHITECTURE.md#not-done--known-gaps).
+Live deployment: <https://lazydog.kumar-aayush2310.workers.dev> (sign-in
+restricted to the owner).
 
 ## Quick start (no Cloudflare login needed)
 
 ```bash
 npm install
+cp apps/lazydog/.dev.vars.example apps/lazydog/.dev.vars       # local secrets + DEV_LOGIN=true
+cp apps/notes-mcp/.dev.vars.example apps/notes-mcp/.dev.vars
 npm run dev:notes                          # terminal 1: notes MCP on :8788
 npm run dev:offline -w apps/lazydog        # terminal 2: LazyDog on :5173
 ```
 
 Open <http://localhost:5173/auth/dev?login=demo>. Offline mode uses a scripted
-model: plain messages are echoed, and `/tool <name> <json>` calls a tool, e.g.
+model (no AI Search or Browser Run): plain messages are echoed,
+`/tool <name> <json>` calls one tool, and `/script [...]` chains several, e.g.
 
 ```
-/tool notes_create_note {"title":"Durable execution","content":"Fibers checkpoint work."}
 /tool schedule_reminder {"message":"stretch","inSeconds":60}
+/tool notes_create_note {"title":"Durable execution","content":"Fibers checkpoint work."}
 ```
 
-With `npx wrangler login`, run `npm run dev` instead to use Workers AI, AI
-Search and Browser Run.
+The note write asks for approval first. With `npx wrangler login` (and a
+workers.dev subdomain registered on the account), run `npm run dev` instead to
+use Workers AI, AI Search and Browser Run.
 
 ## Layout
 
 ```
 apps/lazydog/            the agent Worker + React UI
-  src/server/agent/        LazyDog (Think), tools, prompts, durable research job
+  src/server/agent/        LazyDog (Think), tools, prompts, durable research job, mock model
   src/server/channels/     Slack/email ChannelHost, webhook ingress
-  src/server/identity/     IdentityRegistry Durable Object
+  src/server/identity/     IdentityRegistry Durable Object (identities, link codes, docs seeding)
   src/server/voice/        VoiceBridge (withVoice)
+  src/server/payments/     x402 policy + paid PremiumMCP server (stretch)
+  src/server/http/         JSON API, AI Search docs seeding
   src/server/auth/         GitHub OAuth, signed sessions
-  src/client/              chat, approvals, activity, reminders, jobs, channels, webhooks
+  src/client/              chat, approvals, activity, reminders, jobs, channels, webhooks, voice
+  test/                    vitest-pool-workers suites; fixtures/ = AI Search, Browser Run, Notes doubles
 apps/notes-mcp/          Notes MCP server Worker (D1)
 packages/shared/         HMAC + notes capability tokens
 scripts/send-webhook.mjs sign and send a webhook from a terminal
+scripts/chat.mjs         chat with a running LazyDog from a terminal (dev login)
 docs/                    architecture, identity, webhooks, deploy
 ```
 
@@ -75,8 +86,14 @@ npm test          # both Workers, in the Workers runtime (vitest-pool-workers)
 npm run typecheck
 ```
 
-81 tests: a scripted multi-tool turn (search → read → approval → note saved through the real Notes MCP Worker) and the agent loop through the real Think runtime,
-durable submissions and dedupe, reminders firing from a real alarm, the
-crash-and-resume job, webhook signing/replay/size rules, identity linking and
-its abuse guards, Slack and email routing, auth and routing, and the notes MCP
-server through a real MCP client.
+81 tests (78 LazyDog + 3 Notes MCP): a scripted multi-tool turn (search →
+browse → approval → note saved through the real Notes MCP Worker over HTTP),
+the agent loop through the real Think runtime, durable submissions and dedupe,
+reminders firing from a real alarm, the crash-and-resume job, webhook
+signing/replay/size/rate rules, identity linking and its abuse guards, Slack
+ingress (stubbed Slack API), email *reply* delivery, auth/origin/state
+hardening, docs-index seeding, the payment policy and x402 signing (stub
+facilitator), and the Notes MCP server through a real MCP client. The model in
+CI is scripted, so tests prove the plumbing, not the model's tool choices;
+those were checked against real Workers AI (see ARCHITECTURE.md). Inbound
+email parsing and voice are not in CI.
