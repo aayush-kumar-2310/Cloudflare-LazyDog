@@ -37,7 +37,9 @@ describe("hardening", () => {
     expect(signInAllowed({ ...base, OPEN_SIGNUP: "true" } as unknown as Env, "stranger")).toBe(true);
     const listed = { ...base, ALLOWED_GITHUB_LOGINS: "Octocat, someone" } as unknown as Env;
     expect(signInAllowed(listed, "octocat")).toBe(true);
-    expect(signInAllowed({ ...listed, OPEN_SIGNUP: "true" } as unknown as Env, "stranger")).toBe(false);
+    expect(signInAllowed(listed, "stranger")).toBe(false);
+    // Open sign-up admits anyone, while the list still names the admins.
+    expect(signInAllowed({ ...listed, OPEN_SIGNUP: "true" } as unknown as Env, "stranger")).toBe(true);
   });
 
   it("refuses agent sockets from another origin", async () => {

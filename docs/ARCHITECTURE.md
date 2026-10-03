@@ -124,8 +124,10 @@ deprecated `McpAgent` server path, not `createMcpHandler`.
 * Web: GitHub OAuth, HMAC-signed HttpOnly SameSite=Lax cookie, Origin check on
   state-changing API calls and on agent/voice WebSockets (cookies alone would
   admit other Workers on the same workers.dev subdomain). Sign-in is
-  **deny-by-default**: only `ALLOWED_GITHUB_LOGINS`, unless `OPEN_SIGNUP=true`
-  — every turn spends the account's AI budget. The dev login exists only with
+  **deny-by-default**: `ALLOWED_GITHUB_LOGINS` (the admins) can always sign
+  in; anyone else only with `OPEN_SIGNUP=true`, which the live demo enables so
+  reviewers can try it — at the cost of sharing the free AI quota. Open
+  sign-up never grants admin. The dev login exists only with
   `DEV_LOGIN=true` on a loopback host.
 * Agents are selected from the session, never the URL. Agent state is
   read-only for clients (`validateStateChange` rejects browser writes, so the
@@ -228,5 +230,7 @@ the dashboard showed 0 used.
   owner's workers.dev URLs, GitHub login and D1 id; a fork must replace them
   (DEPLOY.md lists each).
 * No unlink for channel identities (no API in `agents@0.24`).
+* No per-user limit on chat turns: with open sign-up, every user draws on the
+  same free-plan AI quota.
 * Model quality is limited to Workers Free models; the agent occasionally
   embellishes beyond what a page says.

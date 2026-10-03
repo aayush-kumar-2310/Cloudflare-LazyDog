@@ -33,8 +33,56 @@ the same conversation, memory, notes, reminders and activity log.
 ✅ = covered by tests and/or verified against real Cloudflare services.
 ⚠️ = works as described but with the limits stated. The full list of gaps is in
 [ARCHITECTURE.md → Not done / known gaps](docs/ARCHITECTURE.md#not-done--known-gaps).
-Live deployment: <https://lazydog.kumar-aayush2310.workers.dev> (sign-in
-restricted to the owner).
+Live deployment: <https://lazydog.kumar-aayush2310.workers.dev> — sign in
+with any GitHub account; each account gets its own agent.
+
+## Pitfalls
+
+Things that will trip up a demo or a first deploy:
+
+* **Shared free AI quota.** The live app runs on Workers Free: about a few
+  dozen agent turns per day *in total*, shared by everyone who signs in. Once
+  it's used, chat replies with a plain "allowance used" message. It nominally
+  resets at 00:00 UTC, but was observed still refusing calls 1.5 hours later.
+* **Slow answers.** Qwen 3.8 27B (the best free-plan tool-caller) took ~114 s
+  for a full research answer, ~80 s of it writing. Browser Run on Free allows
+  one page load every 10 s, so multi-page research waits or falls back to a
+  plain fetch (labelled `via: "direct-fetch"`).
+* **Note writes wait for you.** Saving or deleting a note pauses the turn
+  until you approve it in the web app — including when the request came from
+  Slack, email or a webhook.
+* **Research needs the docs index.** On a fresh deploy the index is seeded on
+  the first admin visit; until it shows "ready", answers have no sources.
+* **One conversation everywhere.** Anything said on one channel is visible to
+  the model on all of a user's channels.
+* **The model can embellish.** Free-plan models sometimes add claims beyond
+  what the cited page says; check the sources.
+* **Local dev.** `npm run dev` needs `wrangler login` and a workers.dev
+  subdomain on the account; offline mode has no AI Search or Browser Run.
+  Tests pin `compatibility_date` to 2026-08-22, the newest the test runtime
+  supports.
+* **Config is this deployment's.** `wrangler.jsonc` holds this repo's URLs,
+  GitHub login and D1 id; replace them to deploy your own
+  ([DEPLOY.md](docs/DEPLOY.md)).
+
+## Not covered
+
+* **`run_python` on the free plan.** It needs Workers Paid (Containers); it's
+  written but has never run. Free deployments get Think's network-less `bash`.
+* **Web search.** `ai_search` searches an index of the Cloudflare Agents docs;
+  other sites are reachable only by URL through `browser_open`.
+* **Approving from Slack or email.** No buttons or approve links; approval is
+  web-only.
+* **Inbound email and voice in CI**, a real email domain, a real Slack
+  workspace, and voice on a live microphone. Email was checked with local
+  simulation, Slack against a stubbed API, voice with synthesized speech.
+* **A live payment.** x402 is tested against a stub facilitator only; MPP and
+  mainnet aren't wired.
+* **Per-user limits on chat turns**, unlinking a channel identity, and docs
+  seeding at deploy time (it starts on the first admin visit).
+
+Details and reasoning: [ARCHITECTURE.md → Not done / known
+gaps](docs/ARCHITECTURE.md#not-done--known-gaps).
 
 ## Quick start (no Cloudflare login needed)
 

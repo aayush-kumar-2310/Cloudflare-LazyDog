@@ -19,15 +19,16 @@ const redirect = (location: string, cookies: string[] = []) => {
 };
 
 /**
- * LazyDog is a personal agent and every turn spends the account's AI budget,
- * so sign-in is deny-by-default: only ALLOWED_GITHUB_LOGINS, unless the
- * operator explicitly sets OPEN_SIGNUP=true.
+ * Every turn spends the account's AI budget, so sign-in is deny-by-default:
+ * ALLOWED_GITHUB_LOGINS (who are also admins) can always sign in; anyone else
+ * only when the operator sets OPEN_SIGNUP=true. Open sign-up never makes
+ * someone an admin.
  */
 export function signInAllowed(env: Env, login: string, viaDevLogin = false): boolean {
   const c = config(env);
   if (viaDevLogin) return true;
   if (c.allowedGithubLogins.includes(login.toLowerCase())) return true;
-  return c.allowedGithubLogins.length === 0 && c.openSignup;
+  return c.openSignup;
 }
 
 async function startSession(

@@ -53,10 +53,11 @@
     // Needs a domain on Cloudflare with Email Routing (docs/DEPLOY.md); empty disables email.
     "EMAIL_FROM": "",
     "PUBLIC_URL": "https://lazydog.kumar-aayush2310.workers.dev",
-    // Comma-separated GitHub logins allowed to sign in (they are also admins).
-    // Empty = nobody, unless OPEN_SIGNUP is "true". Every turn spends the account's AI budget.
+    // Comma-separated GitHub logins that can always sign in and are admins.
+    // OPEN_SIGNUP "true" also lets any other GitHub account sign in (never as admin).
+    // Every turn spends the account's AI budget (Workers Free: a few dozen turns/day).
     "ALLOWED_GITHUB_LOGINS": "aayush-kumar-2310",
-    "OPEN_SIGNUP": "false",
+    "OPEN_SIGNUP": "true",
     "DEFAULT_TIMEZONE": "UTC",
     // x402 demo payments on Base Sepolia (testnet). Recipient wallet address;
     // the payer key is the X402_PRIVATE_KEY secret. Both empty = payments off.
@@ -108,7 +109,7 @@
         "EMAIL_FROM": "",
         "PUBLIC_URL": "https://lazydog-paid.kumar-aayush2310.workers.dev",
         "ALLOWED_GITHUB_LOGINS": "aayush-kumar-2310",
-        "OPEN_SIGNUP": "false",
+        "OPEN_SIGNUP": "true",
         "DEFAULT_TIMEZONE": "UTC",
         "X402_PAY_TO": ""
       }
